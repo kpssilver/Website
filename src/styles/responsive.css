@@ -1,31 +1,34 @@
 /* ============ RESPONSIVE ============ */
 
-/* ---- Desktop-down: large tablets / small laptops ---- */
+/* ---- Tablet + small laptop ----
+   Everything below the widest tablet breakpoint stacks into a single column
+   and is centred. This covers portrait tablets AND the awkward 861–980px band
+   where the heritage grid used to stay 2-column and push the 1996 numeral off
+   to the left. Stacking + centring here keeps the 1996 dead-centre. */
 @media(max-width:980px){
   .grid{grid-template-columns:repeat(2,1fr)}          /* collections: 2 cols */
   /* catalogue view: if the last row is short a card (odd count), stretch the
      lone card across the full width so the grid always reads evenly. */
   .grid>.card:last-child:nth-child(odd){grid-column:1 / -1}
-}
 
-/* ---- Tablet ---- */
-@media(max-width:860px){
   .heritage-grid,.visit-grid{grid-template-columns:1fr}
   .occ{grid-template-columns:1fr;gap:.4rem}
   .cursor-glow{display:none}
   .coll-head{margin-bottom:2.4rem}
-  .heritage-marks{gap:2rem}
+
   /* centered, stacked CTAs for a clean layout on tablet + mobile */
   .hero-actions{flex-direction:column;align-items:center;width:100%;gap:.9rem}
   .hero-actions .btn{width:100%;max-width:360px;text-align:center}
 
   /* Once these sections stack, centre their content so the 1996 numeral,
-     the counters and the Call / WhatsApp buttons sit in the middle. */
+     the counters and the Call / WhatsApp buttons sit in the middle. The
+     numeral lives in the first grid cell, so centre that cell explicitly. */
+  .heritage-grid>div,
   .heritage-copy,
   .visit-grid>div{text-align:center}
   .heritage-copy .eyebrow,
   .visit-grid .eyebrow{justify-content:center}
-  .heritage-marks{justify-content:center}
+  .heritage-marks{gap:2rem;justify-content:center}
   .lede{margin-left:auto;margin-right:auto}
   /* buttons + links are inline, so text-align:center on the parent centres
      them; give the primary CTA a comfortable centred width. */
