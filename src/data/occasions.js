@@ -2,11 +2,11 @@
 export const occasions = [
   {
     title: 'Weddings',
-    copy: 'Trays, lota sets and gifting silver for the couple, the in-laws and the return gifts — from a single blessing to the whole trousseau.',
+    copy: 'Trays, lota sets and gifting silver for the couple, the in-laws and the return gifts, from a single blessing to the whole trousseau.',
   },
   {
     title: 'Gruhapravesha',
-    copy: 'The kuthuvilakku lit at the threshold, the kalasha, the first flame of a new home — everything a house asks for on the day it becomes a home.',
+    copy: 'The kuthuvilakku lit at the threshold, the kalasha, the first flame of a new home: everything a house asks for on the day it becomes a home.',
   },
   {
     title: 'Festivals',
@@ -14,7 +14,7 @@ export const occasions = [
   },
   {
     title: 'Naming &amp; First Birthdays',
-    copy: "A child's first silver plate, cup and glass — the gift that long outlasts every toy it arrived beside.",
+    copy: "A child's first silver plate, cup and glass, the gift that long outlasts every toy it arrived beside.",
   },
   {
     title: 'Corporate &amp; Return Gifts',

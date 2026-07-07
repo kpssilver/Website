@@ -12,7 +12,7 @@ const WHATSAPP_MESSAGE =
 
 export const site = {
   brand: 'KPS Silver',
-  tagline: 'Pure silver articles · Nagarthpet, Bengaluru · Since 1996',
+  tagline: '925 sterling to 999 fine silver · Nagarthpet, Bengaluru · Since 1996',
   established: 1996,
 
   contact: {
@@ -34,7 +34,7 @@ export const site = {
   },
 
   address: {
-    lines: ['KPS Silver, Nagarthpet Main Road,', 'Bengaluru — 560002, Karnataka'],
+    lines: ['KPS Silver, Nagarthpet Main Road,', 'Bengaluru 560002, Karnataka'],
   },
 
   hours: {

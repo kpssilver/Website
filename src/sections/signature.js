@@ -11,7 +11,7 @@ export function Signature() {
   <div class="wrap signature-head">
     <p class="eyebrow rv">The Sanctum</p>
     <h2 data-split>Where the deity is seated and the lamp is kept lit</h2>
-    <p class="lede rv">The murti that presides over the pooja room, the deepam whose every wick is woken at dusk — the silver through which a family keeps the divine close, morning after morning, generation after generation.</p>
+    <p class="lede rv">The murti that presides over the pooja room, the deepam whose every wick is woken at dusk: the silver through which a family keeps the divine close, morning after morning, generation after generation.</p>
   </div>
   <div class="signature-stage" aria-hidden="true">
     <div class="sig-lamp sig-lamp--left">${Deepam()}</div>

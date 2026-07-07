@@ -6,7 +6,7 @@ import { Logo } from '../components/logo.js';
 export function Nav() {
   return `
 <nav id="nav">
-  <a href="#top" class="nav-brand" aria-label="${site.brand} — home">${Logo('nav')}</a>
+  <a href="#top" class="nav-brand" aria-label="${site.brand} home">${Logo('nav')}</a>
   <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false">
     <span></span><span></span><span></span>
   </button>

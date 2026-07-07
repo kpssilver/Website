@@ -20,5 +20,5 @@ export const tickerItems = [
 export const heritageMarks = [
   { count: 30, suffix: '+', label: 'Years in Nagarthpet' },
   { count: 3, suffix: '', label: 'Generations of customers' },
-  { count: 100, suffix: '%', label: 'Pure silver articles' },
+  { count: 100, suffix: '%', label: 'Genuine hallmarked silver' },
 ];

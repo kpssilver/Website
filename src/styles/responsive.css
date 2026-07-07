@@ -14,7 +14,20 @@
   .heritage-grid,.visit-grid{grid-template-columns:1fr}
   .occ{grid-template-columns:1fr;gap:.4rem}
   .cursor-glow{display:none}
-  .coll-head{margin-bottom:2.4rem}
+
+  /* --- Section headings read centred on tablet & mobile --- */
+  .coll-head{flex-direction:column;align-items:center;text-align:center;margin-bottom:2.4rem}
+  #occasions .wrap>div:first-child,
+  #promise .wrap>div:first-child{text-align:center}
+
+  /* Every eyebrow is centred and flanked by a rule on BOTH sides, so the
+     centred label sits truly in the middle instead of being pushed off by a
+     single left-hand line. (.signature-head hides its left rule by default,
+     so restore it here.) */
+  .eyebrow{justify-content:center}
+  .eyebrow::before,
+  .signature-head .eyebrow::before{display:block}
+  .eyebrow::after{content:'';width:34px;height:1px;background:var(--rose-deep)}
 
   /* centered, stacked CTAs for a clean layout on tablet + mobile */
   .hero-actions{flex-direction:column;align-items:center;width:100%;gap:.9rem}
@@ -26,8 +39,6 @@
   .heritage-grid>div,
   .heritage-copy,
   .visit-grid>div{text-align:center}
-  .heritage-copy .eyebrow,
-  .visit-grid .eyebrow{justify-content:center}
   .heritage-marks{gap:2rem;justify-content:center}
   .lede{margin-left:auto;margin-right:auto}
   /* buttons + links are inline, so text-align:center on the parent centres

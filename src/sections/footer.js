@@ -7,7 +7,7 @@ export function Footer() {
   <div class="foot">
     <div>
       <div class="foot-brand">${Logo('foot')}</div>
-      <small>Pure silver articles · Nagarthpet, Bengaluru · Since ${site.established}</small>
+      <small>925 sterling to 999 fine silver · Nagarthpet, Bengaluru · Since ${site.established}</small>
     </div>
     <small>© 2026 ${site.brand}. All rights reserved.</small>
   </div>

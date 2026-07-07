@@ -19,7 +19,7 @@ export function ContactModal() {
     </button>
     <p class="contact-eyebrow">${site.brand} · Nagarthpet</p>
     <h3 id="contactModalTitle">How would you like to reach us?</h3>
-    <p class="contact-note">Call the store directly, or send us a WhatsApp — we'll reply with photos and prices during store hours.</p>
+    <p class="contact-note">Call the store directly, or send us a WhatsApp, and we'll reply with photos and prices during store hours.</p>
     <div class="contact-choices">
       <a class="contact-choice" data-contact-choice href="${contact.phoneHref}">
         <span class="contact-choice-ic">${phoneIcon}</span>

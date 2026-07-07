@@ -12,7 +12,7 @@ export function Visit() {
     <div>
       <p class="eyebrow rv">Visit Us</p>
       <h2 data-split>Silver is bought in person</h2>
-      <p class="lede rv">Hold it. Weigh it. Compare it under the light. Our store in Nagarthpet has worked that way since 1996 — come see why.</p>
+      <p class="lede rv">Hold it. Weigh it. Compare it under the light. Our store in Nagarthpet has worked that way since 1996. Come see why.</p>
 
       <div class="visit-block rv">
         <h3>Address</h3>
@@ -31,7 +31,7 @@ export function Visit() {
 
     <div class="visit-card rv">
       <h3 class="rosegold metal-sheen" data-text="Talk to the store">Talk to the store</h3>
-      <p>Looking for a specific piece, a bulk gifting order, or today's silver rate? Call us or send a WhatsApp with the occasion and your budget — we'll reply with photos and prices from the store.</p>
+      <p>Looking for a specific piece, a bulk gifting order, or today's silver rate? Call us or send a WhatsApp with the occasion and your budget, and we'll reply with photos and prices from the store.</p>
       <button type="button" class="btn btn-solid" data-magnetic data-contact><span class="fill"></span><span class="lbl">Call or WhatsApp</span></button>
       <p style="margin-top:1.6rem;margin-bottom:0;font-size:.78rem;color:var(--silver-dim)">Replies during store hours · Kannada, Hindi, Tamil &amp; English</p>
     </div>

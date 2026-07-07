@@ -20,8 +20,8 @@ export function Heritage() {
     <div class="heritage-copy">
       <p class="eyebrow rv">The Heritage</p>
       <h2 data-split>Thirty years on the same street</h2>
-      <p class="rv">Nagarthpet is where Bengaluru has bought its silver for generations — a street of weighing scales, purity marks and family shops that know their customers by name. <strong>KPS Silver has stood here since 1996.</strong></p>
-      <p class="rv">We chose one thing and stayed with it: silver articles, not jewellery. The lamp lit at a gruhapravesha, the tray carried to a wedding, the murti installed in a new pooja room — pieces that enter a family and stay for generations.</p>
+      <p class="rv">Nagarthpet is where Bengaluru has bought its silver for generations, a street of weighing scales, purity marks and family shops that know their customers by name. <strong>KPS Silver has stood here since 1996.</strong></p>
+      <p class="rv">We chose one thing and stayed with it: silver articles, not jewellery. The lamp lit at a gruhapravesha, the tray carried to a wedding, the murti installed in a new pooja room, pieces that enter a family and stay for generations.</p>
       <div class="heritage-marks">${marks}
       </div>
     </div>

@@ -28,5 +28,5 @@ const svg = balajiRaw.replace(
 );
 
 export function BalajiOutline() {
-  return `<div class="figure-balaji" role="img" aria-label="Lord Balaji — deities &amp; figures in pure silver">${svg}</div>`;
+  return `<div class="figure-balaji" role="img" aria-label="Lord Balaji, deities and figures in silver">${svg}</div>`;
 }

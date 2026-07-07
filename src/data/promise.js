@@ -2,7 +2,7 @@
 export const promises = [
   {
     title: 'Purity, marked',
-    copy: 'Every article is pure silver, and its purity is stated plainly before you buy — not after you ask.',
+    copy: 'From 925 sterling to 999 fine, every article wears its exact purity as a stamp you can read before you buy, never after you ask.',
   },
   {
     title: 'Priced by weight',
