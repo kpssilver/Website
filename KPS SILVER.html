@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPS Silver — Pure Silver Articles, Nagarthpet, Bengaluru · Since 1996</title>
+<meta name="description" content="KPS Silver, Nagarthpet, Bengaluru. Pure silver pooja articles, deities, singhasans, gifting trays, dinnerware and home décor since 1996.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+Kannada:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2E060B;             /* darkest maroon */
+  --maroon:#4A0E14;
+  --wine:#5E1220;
+  --glow:#8C1E2C;
+  --rose:#C98B7B;            /* rose gold */
+  --rose-hi:#E9BCA9;
+  --rose-deep:#9A5A4E;
+  --silver-hi:#F5F7FA;
+  --silver:#CBD1DA;
+  --silver-dim:#939AA7;
+  --line:rgba(203,209,218,.20);
+  --ivory:#EFEAE3;
+  --fd:'Marcellus',serif;
+  --fb:'Mulish',sans-serif;
+  --fk:'Noto Serif Kannada',serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:auto}
+html.lenis,html.lenis body{height:auto}
+.lenis.lenis-smooth{scroll-behavior:auto!important}
+body{
+  font-family:var(--fb);color:var(--silver);background:var(--ink);
+  line-height:1.65;font-size:16px;overflow-x:hidden;
+}
+::selection{background:var(--rose);color:var(--ink)}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--rose-hi);outline-offset:3px;border-radius:2px}
+button{font-family:inherit}
+
+/* ============ ATMOSPHERE — crossfading fixed gradient layers ============ */
+.atmos{position:fixed;inset:0;z-index:-2;background:var(--ink)}
+.atmos div{
+  position:absolute;inset:0;opacity:0;
+  transition:opacity 1.6s cubic-bezier(.4,0,.2,1);
+  will-change:opacity;
+}
+.bg-hero{
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 112%, rgba(201,139,123,.34), transparent 62%),
+    radial-gradient(ellipse 70% 50% at 78% 108%, rgba(140,30,44,.6), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 50% -10%, rgba(94,18,32,.8), transparent 70%),
+    linear-gradient(175deg,#2E060B 0%,#4A0E14 55%,#3A0910 100%);
+}
+.bg-rose{
+  background:
+    radial-gradient(ellipse 80% 55% at 18% 25%, rgba(201,139,123,.30), transparent 60%),
+    radial-gradient(ellipse 75% 60% at 85% 80%, rgba(233,188,169,.16), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 60% 110%, rgba(140,30,44,.55), transparent 65%),
+    linear-gradient(160deg,#3A0910 0%,#5E1220 45%,#6E2430 78%,#4A0E14 100%);
+}
+.bg-silver{
+  background:
+    radial-gradient(ellipse 80% 60% at 22% 12%, rgba(255,255,255,.55), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 82% 90%, rgba(201,139,123,.22), transparent 60%),
+    linear-gradient(165deg,#F5F4F1 0%,#E6E4E1 45%,#DCD8D4 100%);
+}
+.bg-dusk{
+  background:
+    radial-gradient(ellipse 85% 60% at 50% -6%, rgba(233,188,169,.14), transparent 60%),
+    radial-gradient(ellipse 80% 55% at 50% 115%, rgba(201,139,123,.26), transparent 60%),
+    linear-gradient(178deg,#3A0910 0%,#4A0E14 50%,#2E060B 100%);
+}
+body[data-theme="hero"] .bg-hero,
+body[data-theme="rose"] .bg-rose,
+body[data-theme="silver"] .bg-silver,
+body[data-theme="dusk"] .bg-dusk{opacity:1}
+
+/* grain for depth */
+.atmos::after{
+  content:'';position:absolute;inset:0;opacity:.05;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+}
+
+/* cursor glow (desktop only) */
+.cursor-glow{
+  position:fixed;top:0;left:0;width:460px;height:460px;z-index:-1;
+  border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,rgba(233,188,169,.16) 0%,rgba(201,139,123,.08) 35%,transparent 70%);
+  transform:translate(-50%,-50%);
+  mix-blend-mode:screen;
+}
+@media(hover:none){.cursor-glow{display:none}}
+
+/* scroll progress */
+.progress{
+  position:fixed;top:0;left:0;height:2px;width:100%;z-index:200;
+  transform-origin:left;transform:scaleX(0);
+  background:linear-gradient(90deg,var(--rose),var(--silver-hi),var(--rose));
+}
+
+/* ============ METAL TEXT ============ */
+.metal{
+  background:linear-gradient(170deg,#F8FAFC 0%,#D8DDE4 26%,#9BA3B0 48%,#E6E9EF 70%,#B9C0CB 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+.rosegold{
+  background:linear-gradient(165deg,#F3D5C4 0%,#DBA894 30%,#B0705F 55%,#EFC5B1 78%,#C98B7B 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+.metal-sheen{position:relative;display:inline-block}
+.metal-sheen::after{
+  content:attr(data-text);position:absolute;inset:0;
+  background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.5) 48%,rgba(255,255,255,.95) 50%,rgba(255,255,255,.5) 52%,transparent 68%);
+  background-size:250% 100%;background-position:210% 0;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:sheen 7s ease-in-out infinite;pointer-events:none;
+}
+@keyframes sheen{0%,58%{background-position:210% 0}78%,100%{background-position:-110% 0}}
+
+/* ============ NAV ============ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.1rem clamp(1.25rem,4vw,3.5rem);
+  transition:transform .5s cubic-bezier(.4,0,.2,1),background .5s,backdrop-filter .5s;
+}
+nav.scrolled{
+  background:linear-gradient(180deg,rgba(74,14,20,.66),rgba(46,6,11,.58));
+  backdrop-filter:blur(18px) saturate(1.25);-webkit-backdrop-filter:blur(18px) saturate(1.25);
+  border-bottom:1px solid rgba(201,139,123,.16);
+  box-shadow:0 8px 32px rgba(20,2,5,.18);
+}
+nav.hidden{transform:translateY(-110%)}
+/* over the silver section: richer maroon glass so it reads against white */
+body[data-theme="silver"] nav.scrolled{
+  background:linear-gradient(180deg,rgba(94,18,32,.62),rgba(74,14,20,.52));
+  border-bottom:1px solid rgba(74,14,20,.22);
+  box-shadow:0 8px 32px rgba(74,14,20,.16);
+}
+.nav-brand{font-family:var(--fd);font-size:1.35rem;letter-spacing:.14em;text-transform:uppercase}
+.nav-links{display:flex;gap:2.2rem;align-items:center}
+.nav-links a{
+  font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--silver);
+  position:relative;padding:.25rem 0;transition:color .3s;
+}
+.nav-links a::after{
+  content:'';position:absolute;left:0;bottom:0;height:1px;width:100%;
+  background:linear-gradient(90deg,var(--rose),var(--silver-hi));
+  transform:scaleX(0);transform-origin:right;transition:transform .4s cubic-bezier(.4,0,.2,1);
+}
+.nav-links a:hover{color:var(--silver-hi)}
+.nav-links a:hover::after{transform:scaleX(1);transform-origin:left}
+.nav-cta{border:1px solid var(--line);padding:.55rem 1.3rem!important;border-radius:2px;overflow:hidden}
+.nav-toggle{display:none;background:none;border:none;cursor:pointer;padding:.4rem;z-index:110}
+.nav-toggle span{display:block;width:24px;height:1.5px;background:var(--silver);margin:5px 0;transition:.3s}
+
+/* ============ BUTTONS — magnetic + radial fill from cursor ============ */
+.btn{
+  --fill:#EDEFF3;--txt-hover:#4A0E14;
+  position:relative;display:inline-block;overflow:hidden;cursor:pointer;
+  font-size:.78rem;letter-spacing:.22em;text-transform:uppercase;font-weight:700;
+  padding:1rem 2.3rem;border-radius:2px;border:1px solid transparent;
+  transition:color .45s cubic-bezier(.4,0,.2,1),border-color .45s,box-shadow .45s;
+  will-change:transform;
+}
+.btn .fill{
+  position:absolute;left:var(--x,50%);top:var(--y,50%);
+  width:0;padding-top:0;border-radius:50%;
+  background:var(--fill);
+  transform:translate(-50%,-50%);
+  transition:width .65s cubic-bezier(.3,0,.2,1),padding-top .65s cubic-bezier(.3,0,.2,1);
+  pointer-events:none;
+}
+.btn:hover .fill,.btn:focus-visible .fill{width:280%;padding-top:280%}
+.btn .lbl{position:relative;z-index:2;transition:color .45s}
+.btn-solid{
+  background:linear-gradient(170deg,#F1F3F7,#C4CAD4 55%,#DFE3EA);
+  color:var(--maroon);
+  --fill:#4A0E14;--txt-hover:#F5F7FA;
+  box-shadow:0 6px 30px rgba(203,209,218,.16);
+}
+.btn-solid:hover{box-shadow:0 10px 42px rgba(201,139,123,.28)}
+.btn-ghost{
+  background:transparent;color:var(--silver);border-color:var(--line);
+  --fill:linear;--txt-hover:#2E060B;
+}
+.btn-ghost .fill{background:linear-gradient(170deg,#F3D5C4,#C98B7B)}
+.btn-ghost:hover{border-color:var(--rose)}
+.btn:hover .lbl,.btn:focus-visible .lbl{color:var(--txt-hover)}
+
+/* ============ HERO ============ */
+.hero{
+  min-height:100svh;position:relative;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;padding:7.5rem 1.5rem 4rem;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(203,209,218,.09) 1px,transparent 1.5px);
+  background-size:28px 28px;
+  mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,black,transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,black,transparent 75%);
+}
+.hero-inner{position:relative;display:flex;flex-direction:column;align-items:center;will-change:transform,opacity}
+.hero-kn{font-family:var(--fk);font-size:1.05rem;color:var(--rose);letter-spacing:.35em;margin-bottom:1.3rem}
+.hero-eyebrow{
+  font-size:.72rem;letter-spacing:.42em;text-transform:uppercase;color:var(--silver-dim);
+  display:flex;align-items:center;gap:1rem;margin-bottom:2rem;
+}
+.hero-eyebrow::before,.hero-eyebrow::after{content:'';width:48px;height:1px;background:linear-gradient(90deg,transparent,var(--rose-deep))}
+.hero-eyebrow::after{background:linear-gradient(90deg,var(--rose-deep),transparent)}
+.hero h1{
+  font-family:var(--fd);font-weight:400;text-transform:uppercase;
+  font-size:clamp(3.2rem,11.5vw,9rem);line-height:.95;letter-spacing:.06em;
+}
+.hero h1 .line{display:block;overflow:hidden}
+.hero h1 .line>span{display:inline-block;will-change:transform}
+.hero-sub{max-width:540px;margin:2.2rem auto 0;font-weight:300;font-size:1.05rem;color:var(--silver)}
+.hero-sub strong{font-weight:600;color:var(--silver-hi)}
+.hero-actions{display:flex;gap:1rem;margin-top:2.8rem;flex-wrap:wrap;justify-content:center}
+.hero-scroll{
+  position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);
+  font-size:.65rem;letter-spacing:.3em;text-transform:uppercase;color:var(--silver-dim);
+}
+.hero-scroll::after{
+  content:'';display:block;width:1px;height:38px;margin:.7rem auto 0;
+  background:linear-gradient(180deg,var(--rose),transparent);
+  animation:drip 2.2s ease-in-out infinite;
+}
+@keyframes drip{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* kuthuvilakku */
+.vilakku{margin:0 auto 2.2rem;width:70px;display:block;overflow:visible}
+.vilakku .stroke{stroke:var(--silver);fill:none;stroke-width:1.4;stroke-linecap:round}
+.flame{transform-origin:50% 100%;animation:flicker 2.6s ease-in-out infinite;fill:#F3D5C4}
+.flame-glow{animation:glowpulse 2.6s ease-in-out infinite;fill:rgba(233,188,169,.14)}
+@keyframes flicker{
+  0%,100%{transform:scaleY(1) scaleX(1) rotate(0)}
+  25%{transform:scaleY(1.09) scaleX(.94) rotate(-1.6deg)}
+  50%{transform:scaleY(.93) scaleX(1.05) rotate(1.1deg)}
+  75%{transform:scaleY(1.05) scaleX(.97) rotate(-.7deg)}
+}
+@keyframes glowpulse{0%,100%{opacity:.45}50%{opacity:.9}}
+
+/* ============ TICKER ============ */
+.ticker{
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  overflow:hidden;padding:1.05rem 0;position:relative;
+  background:rgba(46,6,11,.35);backdrop-filter:blur(4px);
+}
+.ticker-track{display:flex;width:max-content;animation:ticker 46s linear infinite;will-change:transform}
+.ticker-track span{
+  font-family:var(--fd);font-size:.95rem;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--silver);padding:0 1.6rem;white-space:nowrap;
+}
+.ticker-track i{font-style:normal;color:var(--rose);padding:0 .2rem}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ============ SECTIONS ============ */
+section{padding:clamp(5rem,10vw,9rem) clamp(1.25rem,5vw,4rem);position:relative}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{
+  font-size:.7rem;letter-spacing:.4em;text-transform:uppercase;color:var(--silver-dim);
+  margin-bottom:1.1rem;display:flex;align-items:center;gap:.9rem;
+}
+.eyebrow::before{content:'';width:34px;height:1px;background:var(--rose-deep)}
+.eyebrow .kn{font-family:var(--fk);letter-spacing:.12em;font-size:.85rem;color:var(--rose)}
+h2{
+  font-family:var(--fd);font-weight:400;color:var(--silver-hi);
+  font-size:clamp(2rem,4.8vw,3.3rem);line-height:1.1;letter-spacing:.03em;
+}
+h2 .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em;margin-bottom:-.08em}
+h2 .w>span{display:inline-block;will-change:transform}
+.lede{max-width:560px;color:var(--silver);font-weight:300;margin-top:1.2rem;font-size:1.02rem}
+
+.rv{will-change:transform,opacity}
+
+/* ============ COLLECTIONS ============ */
+.coll-head{display:flex;justify-content:space-between;align-items:flex-end;gap:2rem;flex-wrap:wrap;margin-bottom:3.2rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:1.1rem}
+.card{
+  position:relative;overflow:hidden;border:1px solid var(--line);border-radius:4px;
+  background:
+    radial-gradient(ellipse 130% 90% at 50% 118%,rgba(140,30,44,.38),transparent 62%),
+    rgba(46,6,11,.45);
+  backdrop-filter:blur(3px);
+  padding:2.4rem 1.8rem 2rem;min-height:295px;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:.55rem;
+  transition:transform .45s cubic-bezier(.3,0,.2,1),border-color .45s,box-shadow .45s;
+  will-change:transform;
+}
+.card::before{
+  content:'';position:absolute;inset:-1px;pointer-events:none;
+  background:linear-gradient(115deg,transparent 35%,rgba(243,213,196,.14) 48%,rgba(245,247,250,.32) 50%,rgba(243,213,196,.14) 52%,transparent 65%);
+  transform:translateX(-130%);
+}
+.card:hover{transform:translateY(-7px);border-color:rgba(201,139,123,.55);box-shadow:0 24px 54px rgba(0,0,0,.45)}
+.card:hover::before{transition:transform .85s ease;transform:translateX(130%)}
+.card svg{
+  width:56px;height:56px;margin-bottom:auto;
+  stroke:var(--silver);fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;
+  transition:stroke .4s,transform .5s cubic-bezier(.3,0,.2,1);
+}
+.card:hover svg{stroke:var(--rose-hi);transform:translateY(-4px)}
+.card h3{font-family:var(--fd);font-weight:400;font-size:1.28rem;letter-spacing:.05em;color:var(--silver-hi)}
+.card p{font-size:.86rem;font-weight:300;color:var(--silver-dim);line-height:1.55}
+.card .num{
+  position:absolute;top:1.3rem;right:1.5rem;font-family:var(--fd);
+  font-size:.8rem;letter-spacing:.2em;color:var(--rose);opacity:.85;
+}
+
+/* ============ HERITAGE ============ */
+.heritage-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2.5rem,6vw,5.5rem);align-items:center}
+.heritage-year{
+  font-family:var(--fd);font-size:clamp(6rem,17vw,13rem);line-height:.9;
+  letter-spacing:.02em;text-align:center;will-change:transform;
+}
+.heritage-year small{
+  display:block;font-family:var(--fb);font-size:.72rem;letter-spacing:.5em;
+  text-transform:uppercase;color:var(--rose);margin-top:1.3rem;
+  -webkit-text-fill-color:var(--rose);
+}
+.heritage-copy p{font-weight:300;margin-top:1.2rem;color:var(--silver)}
+.heritage-copy p strong{font-weight:600;color:var(--silver-hi)}
+.heritage-marks{display:flex;gap:2.6rem;margin-top:2.4rem;flex-wrap:wrap}
+.mark b{display:block;font-family:var(--fd);font-size:2rem;font-weight:400;letter-spacing:.03em}
+.mark span{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--silver-dim)}
+
+/* ============ OCCASIONS ============ */
+.occ-list{margin-top:3rem;border-top:1px solid var(--line)}
+.occ{
+  display:grid;grid-template-columns:minmax(140px,230px) 1fr auto;gap:1.5rem;align-items:center;
+  padding:1.8rem .5rem;border-bottom:1px solid var(--line);
+  position:relative;overflow:hidden;will-change:transform,opacity;
+  transition:padding-left .4s cubic-bezier(.3,0,.2,1);
+}
+.occ::before{
+  content:'';position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(90deg,rgba(201,139,123,.14),rgba(140,30,44,.22) 60%,transparent);
+  transform:scaleX(0);transform-origin:left;transition:transform .5s cubic-bezier(.3,0,.2,1);
+}
+.occ:hover{padding-left:1.3rem}
+.occ:hover::before{transform:scaleX(1)}
+.occ h3{font-family:var(--fd);font-weight:400;font-size:1.25rem;letter-spacing:.05em;color:var(--silver-hi)}
+.occ p{font-size:.9rem;font-weight:300;color:var(--silver-dim);max-width:560px}
+.occ .kn{font-family:var(--fk);color:var(--rose);font-size:1rem;white-space:nowrap}
+
+/* ============ PROMISE (silver theme flips here) ============ */
+.promise{color:var(--maroon)}
+.promise .eyebrow{color:#8a5a5f}
+.promise .eyebrow::before{background:var(--rose-deep)}
+.promise h2{color:var(--maroon)}
+.promise .lede{color:#5c3238}
+.promise-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2.5rem;margin-top:3.4rem}
+.promise-item{border-top:2px solid var(--maroon);padding-top:1.3rem;will-change:transform,opacity}
+.promise-item h3{font-family:var(--fd);font-weight:400;font-size:1.2rem;letter-spacing:.04em;margin-bottom:.5rem;color:var(--maroon)}
+.promise-item p{font-size:.92rem;color:#5c3238;line-height:1.6}
+
+/* ============ VISIT ============ */
+.visit-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(2.5rem,6vw,5rem);align-items:start}
+.visit-block{margin-top:2.2rem;padding-top:1.6rem;border-top:1px solid var(--line)}
+.visit-block h3{font-size:.72rem;letter-spacing:.35em;text-transform:uppercase;color:var(--rose);margin-bottom:.7rem;font-weight:600}
+.visit-block p{font-weight:300;color:var(--silver);font-size:1rem}
+.visit-block a{border-bottom:1px solid var(--line);transition:border-color .3s,color .3s}
+.visit-block a:hover{color:var(--rose-hi);border-color:var(--rose)}
+.visit-card{
+  border:1px solid var(--line);border-radius:4px;padding:2.7rem 2.3rem;
+  background:
+    radial-gradient(ellipse 140% 100% at 50% 125%,rgba(201,139,123,.26),transparent 60%),
+    rgba(46,6,11,.5);
+  backdrop-filter:blur(4px);position:relative;overflow:hidden;
+}
+.visit-card h3{font-family:var(--fd);font-weight:400;font-size:1.6rem;letter-spacing:.04em;margin-bottom:.8rem}
+.visit-card p{font-weight:300;font-size:.95rem;margin-bottom:1.8rem;color:var(--silver)}
+
+/* ============ FOOTER ============ */
+footer{border-top:1px solid var(--line);padding:3rem clamp(1.25rem,5vw,4rem) 2.2rem}
+.foot{max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;gap:2rem;flex-wrap:wrap;align-items:center}
+.foot-brand{font-family:var(--fd);letter-spacing:.14em;text-transform:uppercase;font-size:1.1rem}
+.foot small{color:var(--silver-dim);font-size:.78rem;letter-spacing:.06em;font-weight:300}
+.foot .kn{font-family:var(--fk);color:var(--rose);font-size:.9rem}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:860px){
+  .heritage-grid,.visit-grid{grid-template-columns:1fr}
+  .occ{grid-template-columns:1fr;gap:.4rem}
+  .occ .kn{position:absolute;top:1.8rem;right:.5rem}
+  .cursor-glow{display:none}
+}
+@media(max-width:760px){
+  .nav-links{
+    position:fixed;inset:0;background:rgba(46,6,11,.97);backdrop-filter:blur(10px);
+    flex-direction:column;justify-content:center;gap:2.4rem;
+    transform:translateY(-100%);transition:transform .5s cubic-bezier(.4,0,.2,1);
+  }
+  .nav-links.open{transform:translateY(0)}
+  .nav-links a{font-size:1.05rem;color:var(--silver)!important}
+  .nav-toggle{display:block}
+  .nav-toggle.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+  .nav-toggle.open span:nth-child(2){opacity:0}
+  .nav-toggle.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+  .atmos div{transition:none}
+}
+</style>
+</head>
+<body data-theme="hero">
+
+<div class="atmos" aria-hidden="true">
+  <div class="bg-hero"></div>
+  <div class="bg-rose"></div>
+  <div class="bg-silver"></div>
+  <div class="bg-dusk"></div>
+</div>
+<div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<nav id="nav">
+  <a href="#top" class="nav-brand metal">KPS Silver</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-links" id="navLinks">
+    <a href="#collections">Collections</a>
+    <a href="#heritage">Since 1996</a>
+    <a href="#occasions">Occasions</a>
+    <a href="#promise">Our Promise</a>
+    <a href="#visit" class="nav-cta">Visit the Store</a>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<header class="hero" id="top">
+  <div class="hero-inner" id="heroInner">
+    <svg class="vilakku" viewBox="0 0 100 150" aria-hidden="true">
+      <ellipse class="flame-glow" cx="50" cy="22" rx="15" ry="21"/>
+      <path class="flame" id="flame" d="M50 8 C57 18 60 25 55 32 C53 35 47 35 45 32 C40 25 43 18 50 8 Z"/>
+      <g id="lampStrokes">
+        <path class="stroke" d="M38 40 C38 47 44 52 50 52 C56 52 62 47 62 40"/>
+        <line class="stroke" x1="34" y1="40" x2="66" y2="40"/>
+        <line class="stroke" x1="50" y1="52" x2="50" y2="96"/>
+        <path class="stroke" d="M42 62 C46 66 54 66 58 62"/>
+        <path class="stroke" d="M40 78 C45 83 55 83 60 78"/>
+        <path class="stroke" d="M30 106 C30 99 40 96 50 96 C60 96 70 99 70 106"/>
+        <line class="stroke" x1="26" y1="106" x2="74" y2="106"/>
+        <path class="stroke" d="M32 106 L38 126 L62 126 L68 106"/>
+        <line class="stroke" x1="30" y1="130" x2="70" y2="130"/>
+      </g>
+    </svg>
+
+    <p class="hero-kn" data-intro>ಬೆಳ್ಳಿ ಅಂಗಡಿ · ನಗರ್ತಪೇಟೆ</p>
+    <p class="hero-eyebrow" data-intro>Nagarthpet · Bengaluru · Est. 1996</p>
+    <h1>
+      <span class="line"><span class="metal metal-sheen" data-text="KPS Silver">KPS Silver</span></span>
+    </h1>
+    <p class="hero-sub" data-intro>Three decades of <strong>pure silver articles</strong> — from the kuthuvilakku that opens your home to the singhasan that seats your deity. No jewellery. Only the silver your rituals, gifts and heirlooms are made of.</p>
+    <div class="hero-actions" data-intro>
+      <a href="#collections" class="btn btn-solid" data-magnetic><span class="fill"></span><span class="lbl">Explore Collections</span></a>
+      <a href="#visit" class="btn btn-ghost" data-magnetic><span class="fill"></span><span class="lbl">Visit Nagarthpet Store</span></a>
+    </div>
+  </div>
+  <span class="hero-scroll">Scroll</span>
+</header>
+
+<!-- ================= TICKER ================= -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track" id="tickerTrack">
+    <span>Kuthuvilakku <i>✦</i></span><span>Deities &amp; Figures <i>✦</i></span><span>Singhasans <i>✦</i></span><span>Dry Fruit Trays <i>✦</i></span><span>Lota &amp; Glass Sets <i>✦</i></span><span>Diyas <i>✦</i></span><span>Mata Mukut <i>✦</i></span><span>Wall Clocks <i>✦</i></span><span>Ladies Handbags <i>✦</i></span><span>Plates &amp; Cups <i>✦</i></span><span>Décor Elephants <i>✦</i></span>
+  </div>
+</div>
+
+<!-- ================= COLLECTIONS ================= -->
+<section id="collections" data-theme-trigger="hero">
+  <div class="wrap">
+    <div class="coll-head">
+      <div>
+        <p class="eyebrow rv"><span class="kn">ಸಂಗ್ರಹ</span> The Collections</p>
+        <h2 data-split>Everything a silver home needs</h2>
+      </div>
+      <p class="lede rv" style="margin-top:0">Every piece is crafted in pure silver and priced on the day's rate by weight. Walk in, hold it, weigh it — that is how silver has always been bought in Nagarthpet.</p>
+    </div>
+
+    <div class="grid" id="cardGrid">
+      <article class="card">
+        <span class="num">I</span>
+        <svg viewBox="0 0 56 56"><path d="M22 8 C22 12 26 14 28 14 C30 14 34 12 34 8"/><line x1="28" y1="14" x2="28" y2="34"/><path d="M22 24 C25 27 31 27 34 24"/><path d="M16 40 C16 36 22 34 28 34 C34 34 40 36 40 40"/><line x1="13" y1="40" x2="43" y2="40"/><path d="M16 40 L20 48 L36 48 L40 40"/></svg>
+        <h3>Pooja Articles</h3>
+        <p>Kuthuvilakku, diyas, lotas, panchapatra and every vessel your daily worship and festival rituals call for.</p>
+      </article>
+      <article class="card">
+        <span class="num">II</span>
+        <svg viewBox="0 0 56 56"><path d="M28 6 L38 14 L38 30 L28 38 L18 30 L18 14 Z"/><circle cx="28" cy="20" r="4"/><path d="M22 30 C22 26 34 26 34 30"/><path d="M14 44 L42 44 L40 50 L16 50 Z"/></svg>
+        <h3>Deities &amp; Singhasans</h3>
+        <p>Silver murtis of your ishta devata, mata mukuts, and singhasans worthy of the deity seated on them.</p>
+      </article>
+      <article class="card">
+        <span class="num">III</span>
+        <svg viewBox="0 0 56 56"><ellipse cx="28" cy="30" rx="20" ry="7"/><path d="M8 30 L10 40 C10 44 46 44 46 40 L48 30"/><circle cx="20" cy="28" r="1.5"/><circle cx="28" cy="26" r="1.5"/><circle cx="36" cy="28" r="1.5"/></svg>
+        <h3>Gifting Trays</h3>
+        <p>Dry fruit trays, lota-and-glass sets and presentation trays — the gift that never needs explaining at a wedding.</p>
+      </article>
+      <article class="card">
+        <span class="num">IV</span>
+        <svg viewBox="0 0 56 56"><path d="M12 20 C12 30 18 36 28 36 C38 36 44 30 44 20 Z"/><line x1="8" y1="20" x2="48" y2="20"/><line x1="28" y1="36" x2="28" y2="44"/><line x1="18" y1="48" x2="38" y2="48"/><line x1="28" y1="44" x2="28" y2="48"/></svg>
+        <h3>Dinnerware</h3>
+        <p>Plates, cups, glasses and bowls in pure silver — for the annaprashana, the first birthday, and every meal after.</p>
+      </article>
+      <article class="card">
+        <span class="num">V</span>
+        <svg viewBox="0 0 56 56"><path d="M14 30 C14 18 22 12 30 12 C40 12 46 20 46 28 C46 38 38 44 30 44 L14 44 L14 30 Z"/><path d="M30 12 C34 16 36 22 34 26 C40 26 44 30 42 36"/><circle cx="36" cy="20" r="1.5"/><path d="M14 36 L8 40 L14 44"/></svg>
+        <h3>Home Décor</h3>
+        <p>Silver elephants, figures and centrepieces that make the showcase — and the housewarming — complete.</p>
+      </article>
+      <article class="card">
+        <span class="num">VI</span>
+        <svg viewBox="0 0 56 56"><circle cx="20" cy="22" r="12"/><line x1="20" y1="22" x2="20" y2="15"/><line x1="20" y1="22" x2="25" y2="24"/><path d="M38 30 L48 30 L46 48 L36 48 Z"/><path d="M39 30 C39 26 45 26 45 30"/></svg>
+        <h3>Clocks &amp; Handbags</h3>
+        <p>Silver wall clocks and ladies handbags — heirloom pieces that are carried, not kept away.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HERITAGE (theme → rose gold) ================= -->
+<section id="heritage" data-theme-trigger="rose">
+  <div class="wrap heritage-grid">
+    <div>
+      <div class="heritage-year rosegold metal-sheen" id="bigYear" data-text="1996">1996<small>Nagarthpet · Bengaluru</small></div>
+    </div>
+    <div class="heritage-copy">
+      <p class="eyebrow rv"><span class="kn">ಪರಂಪರೆ</span> The Heritage</p>
+      <h2 data-split>Thirty years on the same street</h2>
+      <p class="rv">Nagarthpet is where Bengaluru has bought its silver for generations — a street of weighing scales, purity marks and family shops that know their customers by name. <strong>KPS Silver has stood here since 1996.</strong></p>
+      <p class="rv">We chose one thing and stayed with it: silver articles, not jewellery. The lamp lit at a gruhapravesha, the tray carried to a wedding, the murti installed in a new pooja room — pieces that enter a family and stay for generations.</p>
+      <div class="heritage-marks">
+        <div class="mark rv"><b class="rosegold" data-count="30" data-suffix="+">0+</b><span>Years in Nagarthpet</span></div>
+        <div class="mark rv"><b class="rosegold" data-count="3">0</b><span>Generations of customers</span></div>
+        <div class="mark rv"><b class="rosegold" data-count="100" data-suffix="%">0%</b><span>Pure silver articles</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= OCCASIONS ================= -->
+<section id="occasions" data-theme-trigger="rose">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow rv"><span class="kn">ಸಂದರ್ಭ</span> The Occasions</p>
+      <h2 data-split>Silver for every milestone</h2>
+      <p class="lede rv">Tell us the occasion and the budget. We'll bring out the pieces that fit both.</p>
+    </div>
+    <div class="occ-list">
+      <div class="occ">
+        <h3>Weddings</h3>
+        <p>Dry fruit trays, lota sets and gifting silver for the couple, the in-laws and the return gifts — from a single piece to the full trousseau.</p>
+        <span class="kn">ಮದುವೆ</span>
+      </div>
+      <div class="occ">
+        <h3>Gruhapravesha</h3>
+        <p>The kuthuvilakku lit at the threshold, the kalasha, the first diya of a new home — everything a housewarming asks for.</p>
+        <span class="kn">ಗೃಹಪ್ರವೇಶ</span>
+      </div>
+      <div class="occ">
+        <h3>Festivals</h3>
+        <p>Diyas for Deepavali, mukuts and singhasans for Navaratri and Varamahalakshmi, fresh silver for the pooja room every season.</p>
+        <span class="kn">ಹಬ್ಬ</span>
+      </div>
+      <div class="occ">
+        <h3>Naming &amp; First Birthdays</h3>
+        <p>A child's first silver plate, cup and glass — the gift that outlasts every toy it arrived with.</p>
+        <span class="kn">ನಾಮಕರಣ</span>
+      </div>
+      <div class="occ">
+        <h3>Corporate &amp; Return Gifts</h3>
+        <p>Clocks, décor elephants and trays in bulk quantities, with consistent weight and finish across the entire order.</p>
+        <span class="kn">ಉಡುಗೊರೆ</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROMISE (theme → silver) ================= -->
+<section class="promise" id="promise" data-theme-trigger="silver">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow rv">The KPS Promise</p>
+      <h2 data-split>Bought the way silver should be bought</h2>
+    </div>
+    <div class="promise-grid">
+      <div class="promise-item">
+        <h3>Purity, marked</h3>
+        <p>Every article is pure silver, and its purity is stated plainly before you buy — not after you ask.</p>
+      </div>
+      <div class="promise-item">
+        <h3>Priced by weight</h3>
+        <p>Weighed in front of you and priced on the day's silver rate. The scale settles the price, not the salesman.</p>
+      </div>
+      <div class="promise-item">
+        <h3>Straight answers</h3>
+        <p>Thirty years in one market means we can't afford a single dishonest sale. Ask us anything about the piece in your hand.</p>
+      </div>
+      <div class="promise-item">
+        <h3>Made to last</h3>
+        <p>Care guidance with every purchase, so the piece you buy today is the one your grandchildren argue over.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VISIT (theme → dusk) ================= -->
+<section id="visit" data-theme-trigger="dusk">
+  <div class="wrap visit-grid">
+    <div>
+      <p class="eyebrow rv"><span class="kn">ಭೇಟಿ</span> Visit Us</p>
+      <h2 data-split>Silver is bought in person</h2>
+      <p class="lede rv">Hold it. Weigh it. Compare it under the light. Our store in Nagarthpet has worked that way since 1996 — come see why.</p>
+
+      <div class="visit-block rv">
+        <h3>Address</h3>
+        <p>KPS Silver, Nagarthpet Main Road,<br>Bengaluru — 560002, Karnataka</p>
+      </div>
+      <div class="visit-block rv">
+        <h3>Hours</h3>
+        <p>Monday – Saturday · 10:30 AM – 8:30 PM<br>Sunday · 11:00 AM – 6:00 PM</p>
+      </div>
+      <div class="visit-block rv">
+        <h3>Contact</h3>
+        <p>Call / WhatsApp · <a href="tel:+919800000000">+91 98XXX XXXXX</a><br>
+        <a href="https://maps.google.com/?q=Nagarthpet+Bangalore" target="_blank" rel="noopener">Get directions on Google Maps →</a></p>
+      </div>
+    </div>
+
+    <div class="visit-card rv">
+      <h3 class="rosegold metal-sheen" data-text="Ask us on WhatsApp">Ask us on WhatsApp</h3>
+      <p>Looking for a specific piece, a bulk gifting order, or today's silver rate? Send us a message with the occasion and your budget — we'll reply with photos and prices from the store.</p>
+      <a class="btn btn-solid" data-magnetic href="https://wa.me/919800000000?text=Namaste%2C%20I%27m%20looking%20for%20silver%20articles%20at%20KPS%20Silver" target="_blank" rel="noopener"><span class="fill"></span><span class="lbl">Message the Store</span></a>
+      <p style="margin-top:1.6rem;margin-bottom:0;font-size:.78rem;color:var(--silver-dim)">Replies during store hours · Kannada, Hindi, Tamil &amp; English</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot">
+    <div>
+      <div class="foot-brand metal">KPS Silver</div>
+      <small>Pure silver articles · Nagarthpet, Bengaluru · Since 1996</small>
+    </div>
+    <span class="kn">ಬೆಳ್ಳಿಯ ಮನೆ, ೧೯೯೬ ರಿಂದ</span>
+    <small>© 2026 KPS Silver. All rights reserved.</small>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lenis/1.1.14/lenis.min.js"></script>
+<script>
+(function(){
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hasGSAP = typeof gsap !== 'undefined';
+
+  /* ---------- ticker: seamless loop ---------- */
+  const track = document.getElementById('tickerTrack');
+  track.innerHTML += track.innerHTML;
+
+  /* ---------- mobile nav ---------- */
+  const toggle = document.getElementById('navToggle'), links = document.getElementById('navLinks');
+  toggle.addEventListener('click', () => {
+    const open = links.classList.toggle('open');
+    toggle.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open);
+  });
+  links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    links.classList.remove('open'); toggle.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  }));
+
+  /* ---------- split h2 into words ---------- */
+  document.querySelectorAll('[data-split]').forEach(h => {
+    const words = h.textContent.trim().split(/\s+/);
+    h.innerHTML = words.map(w => `<span class="w"><span>${w}</span></span>`).join(' ');
+  });
+
+  /* ---------- radial fill origin follows the cursor ---------- */
+  document.querySelectorAll('.btn').forEach(btn => {
+    const setOrigin = e => {
+      const r = btn.getBoundingClientRect();
+      btn.style.setProperty('--x', (e.clientX - r.left) + 'px');
+      btn.style.setProperty('--y', (e.clientY - r.top) + 'px');
+    };
+    btn.addEventListener('mouseenter', setOrigin);
+    btn.addEventListener('mouseleave', setOrigin);
+  });
+
+  /* ---------- nav glass: works even without GSAP ---------- */
+  const nav = document.getElementById('nav');
+  const setGlass = () => nav.classList.toggle('scrolled', (window.scrollY || 0) > 12);
+  addEventListener('scroll', setGlass, { passive: true });
+  setGlass();
+
+  if (!hasGSAP || reduceMotion) return; // static but fully readable fallback
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  /* ---------- Lenis smooth scroll ---------- */
+  if (typeof Lenis !== 'undefined') {
+    const lenis = new Lenis({ duration: 1.15, smoothWheel: true });
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(t => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
+    // anchor links through lenis
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) { e.preventDefault(); lenis.scrollTo(target, { offset: -20 }); }
+      });
+    });
+  }
+
+  /* ---------- hero intro choreography ---------- */
+  const lampPaths = document.querySelectorAll('#lampStrokes .stroke');
+  lampPaths.forEach(p => {
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = len;
+    p.style.strokeDashoffset = len;
+  });
+
+  const intro = gsap.timeline({ defaults: { ease: 'power3.out' } });
+  intro
+    .set('#flame', { opacity: 0, scale: .3, transformOrigin: '50% 100%' })
+    .set('.flame-glow', { opacity: 0 })
+    .to(lampPaths, { strokeDashoffset: 0, duration: 1.4, stagger: .07, ease: 'power2.inOut' })
+    .to('#flame', { opacity: 1, scale: 1, duration: .5, ease: 'back.out(2.5)' }, '-=.25')
+    .to('.flame-glow', { opacity: 1, duration: .6 }, '<')
+    .from('.hero h1 .line > span', { yPercent: 115, duration: 1.1, ease: 'power4.out' }, '-=.55')
+    .from('[data-intro]', { y: 26, opacity: 0, duration: .8, stagger: .12 }, '-=.7')
+    .from('.hero-scroll', { opacity: 0, duration: .6 }, '-=.3');
+
+  /* ---------- hero parallax away on scroll ---------- */
+  gsap.to('#heroInner', {
+    yPercent: -22, opacity: 0, ease: 'none',
+    scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom 35%', scrub: true }
+  });
+
+  /* ---------- theme crossfade per section ---------- */
+  document.querySelectorAll('[data-theme-trigger]').forEach(sec => {
+    ScrollTrigger.create({
+      trigger: sec, start: 'top 55%', end: 'bottom 55%',
+      onEnter: () => document.body.dataset.theme = sec.dataset.themeTrigger,
+      onEnterBack: () => document.body.dataset.theme = sec.dataset.themeTrigger
+    });
+  });
+  ScrollTrigger.create({
+    trigger: '.hero', start: 'top top', end: 'bottom 55%',
+    onEnter: () => document.body.dataset.theme = 'hero',
+    onEnterBack: () => document.body.dataset.theme = 'hero'
+  });
+
+  /* ---------- split-word headline reveals ---------- */
+  document.querySelectorAll('[data-split]').forEach(h => {
+    gsap.from(h.querySelectorAll('.w > span'), {
+      yPercent: 115, rotate: 2, duration: .9, stagger: .06, ease: 'power4.out',
+      scrollTrigger: { trigger: h, start: 'top 84%' }
+    });
+  });
+
+  /* ---------- generic reveals ---------- */
+  document.querySelectorAll('.rv').forEach(el => {
+    gsap.from(el, {
+      y: 30, opacity: 0, duration: .9, ease: 'power3.out',
+      scrollTrigger: { trigger: el, start: 'top 88%' }
+    });
+  });
+
+  /* ---------- cards: staggered rise with slight tilt ---------- */
+  gsap.from('#cardGrid .card', {
+    y: 60, opacity: 0, rotateX: 6, transformOrigin: '50% 100%',
+    duration: 1, stagger: .1, ease: 'power3.out',
+    scrollTrigger: { trigger: '#cardGrid', start: 'top 82%' }
+  });
+
+  /* ---------- big 1996: scrubbed scale + drift ---------- */
+  gsap.fromTo('#bigYear',
+    { scale: .82, yPercent: 12 },
+    { scale: 1, yPercent: -6, ease: 'none',
+      scrollTrigger: { trigger: '#heritage', start: 'top 90%', end: 'bottom 30%', scrub: true } }
+  );
+
+  /* ---------- counters ---------- */
+  document.querySelectorAll('[data-count]').forEach(el => {
+    const end = +el.dataset.count, suf = el.dataset.suffix || '';
+    const obj = { v: 0 };
+    gsap.to(obj, {
+      v: end, duration: 1.6, ease: 'power2.out',
+      scrollTrigger: { trigger: el, start: 'top 88%' },
+      onUpdate: () => el.textContent = Math.round(obj.v) + suf
+    });
+  });
+
+  /* ---------- occasions: slide in ---------- */
+  gsap.utils.toArray('.occ').forEach((row, i) => {
+    gsap.from(row, {
+      x: -46, opacity: 0, duration: .8, ease: 'power3.out', delay: (i % 5) * .04,
+      scrollTrigger: { trigger: row, start: 'top 90%' }
+    });
+  });
+
+  /* ---------- promise items ---------- */
+  gsap.from('.promise-item', {
+    y: 44, opacity: 0, duration: .9, stagger: .12, ease: 'power3.out',
+    scrollTrigger: { trigger: '.promise-grid', start: 'top 84%' }
+  });
+
+  /* ---------- ticker skew on scroll velocity ---------- */
+  const skewSetter = gsap.quickSetter('.ticker-track', 'skewX', 'deg');
+  let targetSkew = 0, currentSkew = 0;
+  ScrollTrigger.create({
+    onUpdate: self => { targetSkew = gsap.utils.clamp(-8, 8, self.getVelocity() / -320); }
+  });
+  gsap.ticker.add(() => {
+    targetSkew *= .9;                              // decay toward rest
+    currentSkew += (targetSkew - currentSkew) * .12; // lerp for smoothness
+    skewSetter(currentSkew);
+  });
+
+  /* ---------- nav: hide on scroll down, reappear on scroll up ---------- */
+  ScrollTrigger.create({
+    start: 'top -80',
+    onUpdate: self => {
+      nav.classList.toggle('hidden', self.direction === 1 && self.scroll() > 420 && !links.classList.contains('open'));
+    }
+  });
+
+  /* ---------- scroll progress ---------- */
+  gsap.to('#progress', {
+    scaleX: 1, ease: 'none',
+    scrollTrigger: { start: 0, end: 'max', scrub: .3 }
+  });
+
+  /* ---------- cursor glow (desktop) ---------- */
+  if (matchMedia('(hover:hover)').matches) {
+    const glow = document.getElementById('cursorGlow');
+    const gx = gsap.quickTo(glow, 'x', { duration: .6, ease: 'power3' });
+    const gy = gsap.quickTo(glow, 'y', { duration: .6, ease: 'power3' });
+    addEventListener('mousemove', e => {
+      gsap.to(glow, { opacity: 1, duration: .4 });
+      gx(e.clientX); gy(e.clientY);
+    });
+    document.addEventListener('mouseleave', () => gsap.to(glow, { opacity: 0, duration: .4 }));
+  }
+
+  /* ---------- magnetic buttons ---------- */
+  if (matchMedia('(hover:hover)').matches) {
+    document.querySelectorAll('[data-magnetic]').forEach(btn => {
+      const xTo = gsap.quickTo(btn, 'x', { duration: .5, ease: 'power3' });
+      const yTo = gsap.quickTo(btn, 'y', { duration: .5, ease: 'power3' });
+      btn.addEventListener('mousemove', e => {
+        const r = btn.getBoundingClientRect();
+        xTo((e.clientX - (r.left + r.width / 2)) * .28);
+        yTo((e.clientY - (r.top + r.height / 2)) * .32);
+      });
+      btn.addEventListener('mouseleave', () => { xTo(0); yTo(0); });
+    });
+  }
+})();
+</script>
+</body>
+</html>

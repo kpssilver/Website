@@ -1,0 +1,74 @@
+/* ============ CONTACT CHOOSER MODAL ============ */
+/* Inline "link-styled" button used in body copy (e.g. the Visit contact line). */
+.linklike{
+  background:none;border:none;padding:0;margin:0;cursor:pointer;
+  font:inherit;color:var(--silver-hi);
+  border-bottom:1px solid rgba(201,139,123,.5);transition:color .3s,border-color .3s;
+}
+.linklike:hover{color:#fff;border-color:var(--rose)}
+
+.modal-open{overflow:hidden}
+
+.contact-modal{
+  position:fixed;inset:0;z-index:1000;
+  display:flex;align-items:center;justify-content:center;padding:1.25rem;
+}
+.contact-modal[hidden]{display:none}
+
+.contact-backdrop{
+  position:absolute;inset:0;background:rgba(20,2,5,.62);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  opacity:0;transition:opacity .3s ease;
+}
+.contact-modal.is-open .contact-backdrop{opacity:1}
+
+.contact-panel{
+  position:relative;width:min(460px,100%);
+  background:linear-gradient(165deg,#3A0910 0%,#4A0E14 55%,#2E060B 100%);
+  border:1px solid rgba(201,139,123,.22);
+  border-radius:14px;padding:2.4rem 2rem 2rem;
+  box-shadow:0 30px 80px rgba(0,0,0,.5);
+  transform:translateY(18px) scale(.97);opacity:0;
+  transition:transform .34s cubic-bezier(.22,1,.36,1),opacity .3s ease;
+}
+.contact-modal.is-open .contact-panel{transform:translateY(0) scale(1);opacity:1}
+
+.contact-close{
+  position:absolute;top:.9rem;right:.9rem;width:34px;height:34px;
+  display:grid;place-items:center;cursor:pointer;
+  background:none;border:1px solid rgba(201,139,123,.25);border-radius:50%;
+  color:var(--silver);transition:color .3s,border-color .3s,background .3s;
+}
+.contact-close svg{width:16px;height:16px}
+.contact-close:hover{color:#fff;border-color:var(--rose);background:rgba(201,139,123,.12)}
+
+.contact-eyebrow{
+  font-size:.68rem;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--silver-dim);margin-bottom:.8rem;
+}
+#contactModalTitle{
+  font-family:var(--fd);font-size:1.5rem;line-height:1.2;color:var(--silver-hi);margin:0 0 .6rem;
+}
+.contact-note{font-size:.9rem;color:var(--silver);margin:0 0 1.6rem;line-height:1.5}
+
+.contact-choices{display:flex;flex-direction:column;gap:.8rem}
+.contact-choice{
+  display:flex;align-items:center;gap:1rem;
+  padding:1rem 1.1rem;border:1px solid rgba(201,139,123,.22);border-radius:10px;
+  background:rgba(255,255,255,.03);
+  transition:border-color .3s,background .3s,transform .3s;
+}
+.contact-choice:hover{border-color:var(--rose);background:rgba(255,255,255,.06);transform:translateY(-2px)}
+.contact-choice-ic{
+  flex:none;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;
+  background:rgba(201,139,123,.14);color:var(--silver-hi);
+}
+.contact-choice-ic svg{width:22px;height:22px}
+.contact-choice--wa .contact-choice-ic{background:rgba(37,211,102,.16);color:#7ff0a6}
+.contact-choice-txt{display:flex;flex-direction:column;gap:.15rem}
+.contact-choice-t{font-size:1rem;color:var(--silver-hi);font-weight:600}
+.contact-choice-s{font-size:.78rem;color:var(--silver-dim)}
+
+@media(prefers-reduced-motion:reduce){
+  .contact-backdrop,.contact-panel{transition:none}
+}

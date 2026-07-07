@@ -1,0 +1,13 @@
+/* ============ TICKER ============ */
+.ticker{
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  overflow:hidden;padding:1.05rem 0;position:relative;
+  background:rgba(46,6,11,.35);backdrop-filter:blur(4px);
+}
+.ticker-track{display:flex;width:max-content;animation:ticker 46s linear infinite;will-change:transform}
+.ticker-track span{
+  font-family:var(--fd);font-size:.95rem;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--silver);padding:0 1.6rem;white-space:nowrap;
+}
+.ticker-track i{font-style:normal;color:var(--rose);padding:0 .2rem}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}

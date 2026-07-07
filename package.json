@@ -1,0 +1,19 @@
+{
+  "name": "kps-silver",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "KPS Silver — pure silver articles landing page (Nagarthpet, Bengaluru · since 1996). Built with Vite for hot-reload and structured for future eCommerce expansion.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "lenis": "^1.1.14"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

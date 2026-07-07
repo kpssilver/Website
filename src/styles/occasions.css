@@ -1,0 +1,17 @@
+/* ============ OCCASIONS ============ */
+.occ-list{margin-top:3rem;border-top:1px solid var(--line)}
+.occ{
+  display:grid;grid-template-columns:minmax(160px,240px) 1fr;gap:1.5rem;align-items:center;
+  padding:1.8rem .5rem;border-bottom:1px solid var(--line);
+  position:relative;overflow:hidden;will-change:transform,opacity;
+  transition:padding-left .4s cubic-bezier(.3,0,.2,1);
+}
+.occ::before{
+  content:'';position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(90deg,rgba(201,139,123,.14),rgba(140,30,44,.22) 60%,transparent);
+  transform:scaleX(0);transform-origin:left;transition:transform .5s cubic-bezier(.3,0,.2,1);
+}
+.occ:hover{padding-left:1.3rem}
+.occ:hover::before{transform:scaleX(1)}
+.occ h3{font-family:var(--fd);font-weight:400;font-size:1.25rem;letter-spacing:.05em;color:var(--silver-hi)}
+.occ p{font-size:.9rem;font-weight:300;color:var(--silver-dim);max-width:560px}

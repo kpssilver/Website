@@ -1,0 +1,17 @@
+/* ============ SECTIONS (shared) ============ */
+section{padding:clamp(5rem,10vw,9rem) clamp(1.25rem,5vw,4rem);position:relative}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{
+  font-size:.7rem;letter-spacing:.4em;text-transform:uppercase;color:var(--silver-dim);
+  margin-bottom:1.1rem;display:flex;align-items:center;gap:.9rem;
+}
+.eyebrow::before{content:'';width:34px;height:1px;background:var(--rose-deep)}
+h2{
+  font-family:var(--fd);font-weight:400;color:var(--silver-hi);
+  font-size:clamp(2rem,4.8vw,3.3rem);line-height:1.1;letter-spacing:.03em;
+}
+h2 .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em;margin-bottom:-.08em}
+h2 .w>span{display:inline-block;will-change:transform}
+.lede{max-width:560px;color:var(--silver);font-weight:300;margin-top:1.2rem;font-size:1.02rem}
+
+.rv{will-change:transform,opacity}

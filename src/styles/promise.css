@@ -1,0 +1,10 @@
+/* ============ PROMISE (silver theme flips here) ============ */
+.promise{color:var(--maroon)}
+.promise .eyebrow{color:#8a5a5f}
+.promise .eyebrow::before{background:var(--rose-deep)}
+.promise h2{color:var(--maroon)}
+.promise .lede{color:#5c3238}
+.promise-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2.5rem;margin-top:3.4rem}
+.promise-item{border-top:2px solid var(--maroon);padding-top:1.3rem;will-change:transform,opacity}
+.promise-item h3{font-family:var(--fd);font-weight:400;font-size:1.2rem;letter-spacing:.04em;margin-bottom:.5rem;color:var(--maroon)}
+.promise-item p{font-size:.92rem;color:#5c3238;line-height:1.6}

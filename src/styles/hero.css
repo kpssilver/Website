@@ -1,0 +1,37 @@
+/* ============ HERO ============ */
+.hero{
+  min-height:100svh;position:relative;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;padding:7.5rem 1.5rem 7rem;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(203,209,218,.09) 1px,transparent 1.5px);
+  background-size:28px 28px;
+  mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,black,transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,black,transparent 75%);
+}
+.hero-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;will-change:transform,opacity}
+.hero-eyebrow{
+  font-size:.72rem;letter-spacing:.42em;text-transform:uppercase;color:var(--silver-dim);
+  display:flex;align-items:center;gap:1rem;margin-top:1.6rem;
+}
+.hero-eyebrow::before,.hero-eyebrow::after{content:'';width:48px;height:1px;background:linear-gradient(90deg,transparent,var(--rose-deep))}
+.hero-eyebrow::after{background:linear-gradient(90deg,var(--rose-deep),transparent)}
+.hero h1{
+  font-family:var(--fd);font-weight:400;text-transform:uppercase;
+  font-size:clamp(3.2rem,11.5vw,9rem);line-height:.95;letter-spacing:.06em;
+}
+.hero-sub{max-width:540px;margin:2.2rem auto 0;font-weight:300;font-size:1.05rem;color:var(--silver)}
+.hero-sub strong{font-weight:600;color:var(--silver-hi)}
+.hero-actions{display:flex;gap:1rem;margin-top:2.8rem;flex-wrap:wrap;justify-content:center}
+.hero-scroll{
+  position:absolute;bottom:2.4rem;left:50%;transform:translateX(-50%);
+  font-size:.65rem;letter-spacing:.3em;text-transform:uppercase;color:var(--silver-dim);
+}
+.hero-scroll::after{
+  content:'';display:block;width:1px;height:38px;margin:.7rem auto 0;
+  background:linear-gradient(180deg,var(--rose),transparent);
+  animation:drip 2.2s ease-in-out infinite;
+}
+@keyframes drip{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}

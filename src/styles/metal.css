@@ -1,0 +1,21 @@
+/* ============ METAL TEXT ============ */
+.metal{
+  background:linear-gradient(170deg,#F8FAFC 0%,#D8DDE4 26%,#9BA3B0 48%,#E6E9EF 70%,#B9C0CB 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+.rosegold{
+  background:linear-gradient(165deg,#F3D5C4 0%,#DBA894 30%,#B0705F 55%,#EFC5B1 78%,#C98B7B 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+}
+.metal-sheen{position:relative;display:inline-block}
+.metal-sheen::after{
+  content:attr(data-text);position:absolute;inset:0;
+  background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.5) 48%,rgba(255,255,255,.95) 50%,rgba(255,255,255,.5) 52%,transparent 68%);
+  background-size:250% 100%;background-position:210% 0;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:sheen 7s ease-in-out infinite;pointer-events:none;
+}
+@keyframes sheen{0%,58%{background-position:210% 0}78%,100%{background-position:-110% 0}}

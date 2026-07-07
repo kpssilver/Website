@@ -1,0 +1,72 @@
+/* ============ RESPONSIVE ============ */
+
+/* ---- Desktop-down: large tablets / small laptops ---- */
+@media(max-width:980px){
+  .grid{grid-template-columns:repeat(2,1fr)}          /* collections: 2 cols */
+  /* catalogue view: if the last row is short a card (odd count), stretch the
+     lone card across the full width so the grid always reads evenly. */
+  .grid>.card:last-child:nth-child(odd){grid-column:1 / -1}
+}
+
+/* ---- Tablet ---- */
+@media(max-width:860px){
+  .heritage-grid,.visit-grid{grid-template-columns:1fr}
+  .occ{grid-template-columns:1fr;gap:.4rem}
+  .cursor-glow{display:none}
+  .coll-head{margin-bottom:2.4rem}
+  .heritage-marks{gap:2rem}
+  /* centered, stacked CTAs for a clean layout on tablet + mobile */
+  .hero-actions{flex-direction:column;align-items:center;width:100%;gap:.9rem}
+  .hero-actions .btn{width:100%;max-width:360px;text-align:center}
+
+  /* Once these sections stack, centre their content so the 1996 numeral,
+     the counters and the Call / WhatsApp buttons sit in the middle. */
+  .heritage-copy,
+  .visit-grid>div{text-align:center}
+  .heritage-copy .eyebrow,
+  .visit-grid .eyebrow{justify-content:center}
+  .heritage-marks{justify-content:center}
+  .lede{margin-left:auto;margin-right:auto}
+  /* buttons + links are inline, so text-align:center on the parent centres
+     them; give the primary CTA a comfortable centred width. */
+  .visit-card .btn{width:100%;max-width:360px}
+  /* centre each catalogue card's icon, title and copy */
+  .card{align-items:center;text-align:center}
+}
+
+/* ---- Collapsed nav (phones + portrait tablets) ---- */
+/* Below this width the inline links (incl. the Visit CTA) no longer fit the
+   bar, so we tuck them into the fullscreen toggle menu. The menu is a
+   viewport-fixed overlay (nav must NOT create a containing block — see
+   nav.css) and is fully hidden + inert when closed to avoid any bleed. */
+@media(max-width:900px){
+  .nav-links{
+    position:fixed;inset:0;height:100dvh;
+    background:linear-gradient(160deg,#3A0910 0%,#4A0E14 55%,#2E060B 100%);
+    flex-direction:column;justify-content:center;gap:2.4rem;
+    transform:translateY(-100%);opacity:0;visibility:hidden;pointer-events:none;
+    transition:transform .5s cubic-bezier(.4,0,.2,1),opacity .4s ease,visibility .4s;
+  }
+  .nav-links.open{transform:translateY(0);opacity:1;visibility:visible;pointer-events:auto}
+  .nav-links a{font-size:1.15rem;color:var(--silver)!important}
+  .nav-cta{border-color:var(--rose)}
+  .nav-toggle{display:block}
+  .nav-toggle.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+  .nav-toggle.open span:nth-child(2){opacity:0}
+  .nav-toggle.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+}
+
+/* ---- Small mobile ---- */
+@media(max-width:560px){
+  .grid{grid-template-columns:1fr}                    /* collections: 1 col */
+  .card{min-height:0}
+  .hero{padding:7rem 1.25rem 6rem}
+  .heritage-marks{gap:1.6rem}
+  .foot{flex-direction:column;align-items:flex-start;gap:1.1rem}
+}
+
+/* ---- Motion preference ---- */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+  .atmos div{transition:none}
+}

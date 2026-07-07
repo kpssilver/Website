@@ -1,0 +1,16 @@
+/* ============ VISIT ============ */
+.visit-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(2.5rem,6vw,5rem);align-items:start}
+.visit-block{margin-top:2.2rem;padding-top:1.6rem;border-top:1px solid var(--line)}
+.visit-block h3{font-size:.72rem;letter-spacing:.35em;text-transform:uppercase;color:var(--rose);margin-bottom:.7rem;font-weight:600}
+.visit-block p{font-weight:300;color:var(--silver);font-size:1rem}
+.visit-block a{border-bottom:1px solid var(--line);transition:border-color .3s,color .3s}
+.visit-block a:hover{color:var(--rose-hi);border-color:var(--rose)}
+.visit-card{
+  border:1px solid var(--line);border-radius:4px;padding:2.7rem 2.3rem;
+  background:
+    radial-gradient(ellipse 140% 100% at 50% 125%,rgba(201,139,123,.26),transparent 60%),
+    rgba(46,6,11,.5);
+  backdrop-filter:blur(4px);position:relative;overflow:hidden;
+}
+.visit-card h3{font-family:var(--fd);font-weight:400;font-size:1.6rem;letter-spacing:.04em;margin-bottom:.8rem}
+.visit-card p{font-weight:300;font-size:.95rem;margin-bottom:1.8rem;color:var(--silver)}

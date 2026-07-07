@@ -1,0 +1,16 @@
+/* ============ HERITAGE ============ */
+.heritage-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2.5rem,6vw,5.5rem);align-items:center}
+.heritage-year{
+  font-family:var(--fd);font-size:clamp(6rem,17vw,13rem);line-height:.9;
+  letter-spacing:.02em;text-align:center;will-change:transform;
+}
+.heritage-year small{
+  display:block;font-family:var(--fb);font-size:.72rem;letter-spacing:.5em;
+  text-transform:uppercase;color:var(--rose);margin-top:1.3rem;
+  -webkit-text-fill-color:var(--rose);
+}
+.heritage-copy p{font-weight:300;margin-top:1.2rem;color:var(--silver)}
+.heritage-copy p strong{font-weight:600;color:var(--silver-hi)}
+.heritage-marks{display:flex;gap:2.6rem;margin-top:2.4rem;flex-wrap:wrap}
+.mark b{display:block;font-family:var(--fd);font-size:2rem;font-weight:400;letter-spacing:.03em}
+.mark span{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--silver-dim)}

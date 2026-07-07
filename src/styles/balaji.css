@@ -1,0 +1,26 @@
+/* ============ BALAJI (gleaming silver line-art) ============ */
+.figure-balaji{
+  width:100%;
+  line-height:0;
+  filter:drop-shadow(0 0 16px rgba(198,206,220,.22)) drop-shadow(0 10px 30px rgba(0,0,0,.35));
+  animation:balaji-breathe 7s ease-in-out infinite;
+}
+.figure-balaji .balaji-outline-svg{display:block;width:100%;height:auto}
+
+/* recolour every stroke of the drawing to the animated silver gleam */
+.figure-balaji .balaji-outline-svg path[stroke]{stroke:url(#balajiGleam)}
+
+@keyframes balaji-breathe{
+  0%,100%{filter:drop-shadow(0 0 14px rgba(198,206,220,.18)) drop-shadow(0 10px 30px rgba(0,0,0,.35))}
+  50%{filter:drop-shadow(0 0 22px rgba(226,231,240,.34)) drop-shadow(0 10px 30px rgba(0,0,0,.35))}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .figure-balaji{animation:none}
+}
+
+/* visually-hidden but accessible page heading */
+.sr-only{
+  position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}

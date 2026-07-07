@@ -1,0 +1,17 @@
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --ink:#2E060B;             /* darkest maroon */
+  --maroon:#4A0E14;
+  --wine:#5E1220;
+  --glow:#8C1E2C;
+  --rose:#C98B7B;            /* rose gold */
+  --rose-hi:#E9BCA9;
+  --rose-deep:#9A5A4E;
+  --silver-hi:#F5F7FA;
+  --silver:#CBD1DA;
+  --silver-dim:#939AA7;
+  --line:rgba(203,209,218,.20);
+  --ivory:#EFEAE3;
+  --fd:'Marcellus',serif;
+  --fb:'Mulish',sans-serif;
+}

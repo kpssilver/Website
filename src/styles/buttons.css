@@ -1,0 +1,33 @@
+/* ============ BUTTONS — magnetic + radial fill from cursor ============ */
+.btn{
+  --fill:#EDEFF3;--txt-hover:#4A0E14;
+  position:relative;display:inline-block;overflow:hidden;cursor:pointer;
+  font-size:.78rem;letter-spacing:.22em;text-transform:uppercase;font-weight:700;
+  padding:1rem 2.3rem;border-radius:2px;border:1px solid transparent;
+  transition:color .45s cubic-bezier(.4,0,.2,1),border-color .45s,box-shadow .45s;
+  will-change:transform;
+}
+.btn .fill{
+  position:absolute;left:var(--x,50%);top:var(--y,50%);
+  width:0;padding-top:0;border-radius:50%;
+  background:var(--fill);
+  transform:translate(-50%,-50%);
+  transition:width .65s cubic-bezier(.3,0,.2,1),padding-top .65s cubic-bezier(.3,0,.2,1);
+  pointer-events:none;
+}
+.btn:hover .fill,.btn:focus-visible .fill{width:280%;padding-top:280%}
+.btn .lbl{position:relative;z-index:2;transition:color .45s}
+.btn-solid{
+  background:linear-gradient(170deg,#F1F3F7,#C4CAD4 55%,#DFE3EA);
+  color:var(--maroon);
+  --fill:#4A0E14;--txt-hover:#F5F7FA;
+  box-shadow:0 6px 30px rgba(203,209,218,.16);
+}
+.btn-solid:hover{box-shadow:0 10px 42px rgba(201,139,123,.28)}
+.btn-ghost{
+  background:transparent;color:var(--silver);border-color:var(--line);
+  --fill:linear;--txt-hover:#2E060B;
+}
+.btn-ghost .fill{background:linear-gradient(170deg,#F3D5C4,#C98B7B)}
+.btn-ghost:hover{border-color:var(--rose)}
+.btn:hover .lbl,.btn:focus-visible .lbl{color:var(--txt-hover)}
