@@ -232,16 +232,6 @@ export function initInteractions() {
     });
   });
 
-  /* ---------- signature: deity + flanking lamps rise together ---------- */
-  gsap.from('.signature-stage > *', {
-    y: 64,
-    opacity: 0,
-    duration: 1.15,
-    stagger: 0.14,
-    ease: 'power3.out',
-    scrollTrigger: { trigger: '.signature-stage', start: 'top 82%' },
-  });
-
   /* ---------- cards: staggered rise with slight tilt ---------- */
   gsap.from('#cardGrid .card', {
     y: 60,

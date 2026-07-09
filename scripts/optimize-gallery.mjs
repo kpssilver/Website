@@ -14,10 +14,10 @@ mkdirSync(outDir, { recursive: true });
 
 // source file -> output slug, plus the largest dimension we want to keep.
 const jobs = [
-  { src: 'Pooja Thali.png', out: 'pooja-thali.webp', max: 1400 },
-  { src: 'Fruit Bowl.png', out: 'fruit-bowl.webp', max: 1400 },
-  { src: 'pots.png', out: 'pots.webp', max: 1400 },
-  { src: 'deepam.png', out: 'deepam.webp', max: 1600 },
+  { src: 'Pooja Thali.png', out: 'pooja-thali.webp', max: 1500 },
+  { src: 'Fruit Bowl.png', out: 'fruit-bowl.webp', max: 1500 },
+  { src: 'pots.png', out: 'pots.webp', max: 1500 },
+  { src: 'Deepam.png', out: 'deepam.webp', max: 1500 },
 ];
 
 for (const { src, out, max } of jobs) {

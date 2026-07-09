@@ -22,11 +22,11 @@
 
   /* Every eyebrow is centred and flanked by a rule on BOTH sides, so the
      centred label sits truly in the middle instead of being pushed off by a
-     single left-hand line. (.signature-head hides its left rule by default,
+     single left-hand line. (.showcase-head hides its left rule by default,
      so restore it here.) */
   .eyebrow{justify-content:center}
   .eyebrow::before,
-  .signature-head .eyebrow::before{display:block}
+  .showcase-head .eyebrow::before{display:block}
   .eyebrow::after{content:'';width:34px;height:1px;background:var(--rose-deep)}
 
   /* centered, stacked CTAs for a clean layout on tablet + mobile */

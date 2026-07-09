@@ -22,9 +22,9 @@ export function Showcase() {
     .map(
       (p, i) => `
       <li class="showcase-slide" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${pieces.length}: ${p.title}">
-        <figure class="showcase-card">
-          <div class="showcase-figure">
-            <img src="${p.src}" alt="${p.title} in silver by KPS Silver" loading="lazy" decoding="async" draggable="false" />
+        <figure class="showcase-fig">
+          <div class="showcase-media">
+            <img src="${p.src}" alt="${p.title} in silver, styled by KPS Silver" loading="lazy" decoding="async" draggable="false" />
           </div>
           <figcaption class="showcase-cap">
             <span class="showcase-cap-tag">${p.tag}</span>

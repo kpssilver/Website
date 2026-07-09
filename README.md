@@ -57,7 +57,7 @@ npm run preview   # preview the production build locally
     │   ├── nav.js             #   top navigation
     │   ├── hero.js            #   hero + gleaming brand logo
     │   ├── ticker.js          #   scrolling category marquee
-    │   ├── signature.js       #   gleaming Balaji + flanking lit deepams
+    │   ├── showcase.js        #   "In Focus" product image carousel
     │   ├── collections.js     #   "The Collections" grid
     │   ├── heritage.js        #   "Since 1996" story
     │   ├── occasions.js       #   "Occasions" list
