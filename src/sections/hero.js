@@ -14,7 +14,7 @@ export function Hero() {
     <p class="hero-sub" data-intro>For three decades, the silver a devout home turns to. The <strong>kuthuvilakku</strong> lit at the doorway, the singhasan that seats the deity, the tray carried to a wedding. Not jewellery. Only the sacred silver of ritual, blessing and belonging, worked from 925 sterling to 999 fine.</p>
     <div class="hero-actions" data-intro>
       <a href="#collections" class="btn btn-solid" data-magnetic><span class="fill"></span><span class="lbl">Explore Collections</span></a>
-      <a href="${site.contact.mapsDirectionsUrl}" target="_blank" rel="noopener" class="btn btn-ghost" data-magnetic><span class="fill"></span><span class="lbl">Visit Nagarthpet Store</span></a>
+      <a href="${site.contact.mapsDirectionsUrl}" target="_blank" rel="noopener" class="btn btn-ghost" data-magnetic><span class="fill"></span><span class="lbl">Visit the Store</span></a>
     </div>
   </div>
   <span class="hero-scroll">Scroll</span>

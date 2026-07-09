@@ -64,7 +64,12 @@
   .nav-links.open{transform:translateY(0);opacity:1;visibility:visible;pointer-events:auto}
   .nav-links a{font-size:1.15rem;color:var(--silver)!important}
   .nav-cta{border-color:var(--rose)}
-  .nav-toggle{display:block}
+  /* centre the brand logo in the bar; the hamburger floats at the right edge */
+  nav{justify-content:center}
+  .nav-toggle{
+    display:block;position:absolute;top:50%;transform:translateY(-50%);
+    right:clamp(1.25rem,4vw,3.5rem);
+  }
   .nav-toggle.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
   .nav-toggle.open span:nth-child(2){opacity:0}
   .nav-toggle.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}

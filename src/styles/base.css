@@ -9,5 +9,10 @@ body{
 }
 ::selection{background:var(--rose);color:var(--ink)}
 a{color:inherit;text-decoration:none}
+/* visually hidden, but still read by search engines & screen readers */
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
 :focus-visible{outline:2px solid var(--rose-hi);outline-offset:3px;border-radius:2px}
 button{font-family:inherit}
