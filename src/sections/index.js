@@ -6,6 +6,7 @@ import { Nav } from './nav.js';
 import { Hero } from './hero.js';
 import { Ticker } from './ticker.js';
 import { Signature } from './signature.js';
+import { Showcase } from './showcase.js';
 import { Collections } from './collections.js';
 import { Heritage } from './heritage.js';
 import { Occasions } from './occasions.js';
@@ -20,6 +21,7 @@ const sections = [
   Hero,
   Ticker,
   Signature,
+  Showcase,
   Collections,
   Heritage,
   Occasions,

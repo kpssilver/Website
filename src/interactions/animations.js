@@ -53,6 +53,106 @@ export function initInteractions() {
   addEventListener('scroll', setGlass, { passive: true });
   setGlass();
 
+  /* ---------- showcase carousel (native scroll-snap + buttons + dots) ---------- */
+  const showcase = document.getElementById('showcase');
+  if (showcase) {
+    const viewport = showcase.querySelector('.showcase-viewport');
+    const slides = Array.from(showcase.querySelectorAll('.showcase-slide'));
+    const prevBtn = showcase.querySelector('[data-sc-prev]');
+    const nextBtn = showcase.querySelector('[data-sc-next]');
+    const dotsWrap = showcase.querySelector('.showcase-dots');
+    let current = 0;
+
+    slides.forEach((_, i) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'sc-dot';
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', `Show piece ${i + 1}`);
+      dot.addEventListener('click', () => go(i));
+      dotsWrap.appendChild(dot);
+    });
+    const dots = Array.from(dotsWrap.children);
+
+    // scroll so slide i sits dead-centre — measured from live rects so it is
+    // immune to offsetParent quirks and never nudges the page vertically.
+    const go = (i) => {
+      current = Math.max(0, Math.min(slides.length - 1, i));
+      const s = slides[current].getBoundingClientRect();
+      const v = viewport.getBoundingClientRect();
+      const delta = s.left + s.width / 2 - (v.left + v.width / 2);
+      viewport.scrollTo({ left: viewport.scrollLeft + delta, behavior: 'smooth' });
+    };
+
+    const sync = () => {
+      const v = viewport.getBoundingClientRect();
+      const vMid = v.left + v.width / 2;
+      let best = 0;
+      let bestDist = Infinity;
+      slides.forEach((s, i) => {
+        const r = s.getBoundingClientRect();
+        const dist = Math.abs(r.left + r.width / 2 - vMid);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      });
+      current = best;
+      dots.forEach((d, i) => d.setAttribute('aria-selected', String(i === best)));
+      if (prevBtn) prevBtn.disabled = best === 0;
+      if (nextBtn) nextBtn.disabled = best === slides.length - 1;
+    };
+
+    let syncRaf;
+    viewport.addEventListener(
+      'scroll',
+      () => {
+        cancelAnimationFrame(syncRaf);
+        syncRaf = requestAnimationFrame(sync);
+      },
+      { passive: true },
+    );
+    prevBtn?.addEventListener('click', () => go(current - 1));
+    nextBtn?.addEventListener('click', () => go(current + 1));
+    viewport.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        go(current + 1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        go(current - 1);
+      }
+    });
+    addEventListener('resize', sync, { passive: true });
+    sync();
+
+    // gentle autoplay, only when motion is welcome. Pauses on interaction,
+    // when the tab is hidden, and whenever the carousel is off-screen.
+    if (!reduceMotion) {
+      let timer = null;
+      const stop = () => {
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      };
+      const start = () => {
+        stop();
+        timer = setInterval(() => go(current >= slides.length - 1 ? 0 : current + 1), 4500);
+      };
+      ['pointerenter', 'focusin', 'pointerdown', 'touchstart'].forEach((ev) =>
+        showcase.addEventListener(ev, stop, { passive: true }),
+      );
+      ['pointerleave', 'focusout'].forEach((ev) =>
+        showcase.addEventListener(ev, start, { passive: true }),
+      );
+      document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
+      new IntersectionObserver((entries) => entries.forEach((en) => (en.isIntersecting ? start() : stop())), {
+        threshold: 0.35,
+      }).observe(showcase);
+    }
+  }
+
   if (reduceMotion) return; // static but fully readable fallback
 
   gsap.registerPlugin(ScrollTrigger);

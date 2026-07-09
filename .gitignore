@@ -3,3 +3,7 @@ dist
 .DS_Store
 *.local
 .vite
+
+# Heavy source artwork kept locally only — the web-ready, optimised copies
+# live in src/assets/gallery/*.webp (generated via scripts/optimize-gallery.mjs).
+/*.png

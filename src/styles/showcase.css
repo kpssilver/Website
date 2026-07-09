@@ -1,0 +1,120 @@
+/* ============ SHOWCASE (product carousel before Collections) ============ */
+.showcase-head{text-align:center;margin-bottom:clamp(2rem,5vw,3.2rem)}
+.showcase-head .eyebrow{justify-content:center}
+.showcase-head .eyebrow::before{display:none}
+.showcase-head h2{max-width:18ch;margin:0 auto}
+.showcase-head .lede{margin-left:auto;margin-right:auto}
+
+/* rail = the buttons flanking the scrollable viewport */
+.showcase-rail{position:relative;display:flex;align-items:center;gap:.6rem;max-width:1180px;margin:0 auto}
+
+.showcase-viewport{
+  flex:1 1 auto;min-width:0;
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch;
+  /* let the first & last slide reach the centre */
+  scroll-padding-inline:50%;
+  padding:1rem 0 1.4rem;
+}
+/* hide the scrollbar but keep it scrollable */
+.showcase-viewport{scrollbar-width:none;-ms-overflow-style:none}
+.showcase-viewport::-webkit-scrollbar{display:none}
+.showcase-viewport:focus-visible{outline:1px solid var(--rose-deep);outline-offset:4px;border-radius:6px}
+
+.showcase-track{
+  display:flex;align-items:stretch;gap:clamp(1rem,3vw,2rem);
+  list-style:none;margin:0;padding:0 50%;width:max-content;
+}
+
+.showcase-slide{
+  flex:0 0 auto;width:clamp(258px,74vw,340px);
+  scroll-snap-align:center;
+}
+
+.showcase-card{
+  position:relative;height:100%;margin:0;
+  display:flex;flex-direction:column;
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 8%,rgba(201,139,123,.16),transparent 60%),
+    radial-gradient(ellipse 130% 90% at 50% 120%,rgba(140,30,44,.42),transparent 62%),
+    rgba(46,6,11,.5);
+  backdrop-filter:blur(3px);
+  transition:border-color .5s ease,box-shadow .5s ease,transform .5s cubic-bezier(.3,0,.2,1);
+}
+
+/* the images are full editorial scenes (not cutouts) with their own light
+   backdrops and mixed aspect ratios, so we mat them inside a fixed frame and
+   `contain` them: portraits nearly fill it, the wide deepam sits as a centred
+   band. Nothing is ever cropped, and every card is the same size. */
+.showcase-figure{
+  position:relative;flex:1 1 auto;
+  display:grid;place-items:center;
+  aspect-ratio:4 / 5;padding:1.1rem;
+}
+.showcase-figure img{
+  width:100%;height:100%;object-fit:contain;
+  border-radius:6px;
+  box-shadow:0 18px 34px rgba(0,0,0,.4);
+  transition:transform .6s cubic-bezier(.3,0,.2,1);
+}
+
+.showcase-cap{
+  position:relative;z-index:1;text-align:center;
+  padding:1rem 1.2rem 1.5rem;border-top:1px solid var(--line);
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.12));
+}
+.showcase-cap-tag{
+  font-size:.62rem;letter-spacing:.32em;text-transform:uppercase;color:var(--rose);
+}
+.showcase-cap h3{
+  font-family:var(--fd);font-weight:400;font-size:1.3rem;letter-spacing:.05em;
+  color:var(--silver-hi);margin-top:.4rem;
+}
+
+/* hover polish (pointer devices only) */
+@media(hover:hover){
+  .showcase-card:hover{border-color:rgba(201,139,123,.5);box-shadow:0 28px 60px rgba(0,0,0,.45)}
+  .showcase-card:hover .showcase-figure img{transform:translateY(-6px) scale(1.03)}
+}
+
+/* --- nav buttons --- */
+.showcase-nav{
+  flex:0 0 auto;width:46px;height:46px;border-radius:50%;
+  display:grid;place-items:center;cursor:pointer;
+  color:var(--silver-hi);background:rgba(46,6,11,.55);
+  border:1px solid var(--line);backdrop-filter:blur(6px);
+  transition:background .35s,border-color .35s,color .35s,opacity .35s;
+}
+.showcase-nav svg{width:22px;height:22px}
+.showcase-nav:hover{background:var(--glow);border-color:var(--rose);color:#fff}
+.showcase-nav:disabled{opacity:.3;cursor:default}
+.showcase-nav:disabled:hover{background:rgba(46,6,11,.55);border-color:var(--line);color:var(--silver-hi)}
+
+/* --- dots --- */
+.showcase-dots{
+  display:flex;justify-content:center;gap:.7rem;margin-top:1.6rem;
+}
+.sc-dot{
+  width:9px;height:9px;padding:0;border-radius:50%;cursor:pointer;
+  border:1px solid var(--rose-deep);background:transparent;
+  transition:background .35s,transform .35s,border-color .35s;
+}
+.sc-dot[aria-selected="true"]{background:var(--rose);border-color:var(--rose);transform:scale(1.25)}
+
+/* On touch layouts the arrows overlap the edges of the strip instead of
+   stealing horizontal space, so the cards get the full width. */
+@media(max-width:860px){
+  .showcase-rail{gap:0}
+  .showcase-nav{position:absolute;top:calc(50% - 30px);z-index:2}
+  .showcase-nav--prev{left:.4rem}
+  .showcase-nav--next{right:.4rem}
+}
+@media(max-width:560px){
+  .showcase-slide{width:clamp(230px,82vw,320px)}
+  .showcase-figure{height:clamp(260px,52vw,360px)}
+  /* arrows are easy to miss-tap next to the cards on small phones; the strip
+     is fully swipeable, and the dots give an explicit control. */
+  .showcase-nav{display:none}
+}
