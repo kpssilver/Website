@@ -10,7 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.2",
+    "chart.js": "^4.5.1",
     "gsap": "^3.12.5",
+    "leaflet": "^1.9.4",
     "lenis": "^1.1.14"
   },
   "devDependencies": {
