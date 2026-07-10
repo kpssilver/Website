@@ -1,20 +1,19 @@
 // =============================================================================
 // CONTENT MANAGER (WYSIWYG)
-// Shows the real landing page in a live preview iframe with click-to-edit:
-//   • Every editable heading, sub-heading, body copy, button label, link/URL
-//     and image is exposed in the side editor AND clickable in the preview.
-//   • Edits preview live (in the iframe) before saving.
-//   • Images show the current photo with replace / add.
-//   • "Preview ↗" opens a full-tab preview of the unsaved edits.
-// Saved values persist to public.site_content; images to the site-images
-// bucket. Values reset to default are removed so the code default takes over.
+// Shows the real landing page in a live preview iframe with in-place editing:
+//   • Text / headings / body / labels are editable directly in the preview
+//     (contenteditable) AND from the side panel — the two stay in sync.
+//   • Images and link URLs are edited from the side panel (click opens them).
+//   • Edits are kept as a draft (sessionStorage) so they survive any re-render
+//     or tab switch, and preview live before saving.
+//   • Saving is a safe diff: it upserts current overrides and only deletes
+//     overrides the admin explicitly removed — it never mass-deletes.
 // =============================================================================
 import { supabase } from '../config/supabase.js';
 import {
   contentGroups,
   contentFields,
   fieldByKey,
-  cd,
   nl2br,
   isHtmlField,
   isMultilineField,
@@ -22,11 +21,14 @@ import {
 
 const IMAGE_BUCKET = 'site-images';
 const PREVIEW_KEY = 'kps_preview_overrides';
+const DRAFT_KEY = 'kps_content_draft';
 
 const EDIT_CSS = `
 [data-intro], .rv, [data-split] { opacity: 1 !important; transform: none !important; filter: none !important; }
 .kps-editable { cursor: pointer !important; }
-.kps-editable:hover { outline: 2px solid #E9BCA9 !important; outline-offset: 2px; background: rgba(233,188,169,0.10) !important; }
+.kps-editable:hover { outline: 2px dashed rgba(233,188,169,.65) !important; outline-offset: 2px; }
+.kps-editable[contenteditable="true"] { cursor: text !important; }
+.kps-editable[contenteditable="true"]:focus { outline: 2px solid #E9BCA9 !important; outline-offset: 2px; background: rgba(233,188,169,0.10) !important; }
 #kps-badge { position: absolute; z-index: 99999; background: #E9BCA9; color: #2E060B; font: 600 11px/1 Mulish, sans-serif; padding: 5px 8px; border-radius: 6px; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.45); display: inline-flex; gap: 4px; align-items: center; }
 #kps-badge[hidden] { display: none; }
 `;
@@ -43,6 +45,19 @@ async function fetchOverrides() {
   const { data, error } = await supabase.from('site_content').select('key, value');
   if (error) throw error;
   return new Map((data || []).map((r) => [r.key, r.value]));
+}
+
+function readDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    // Keep only keys we still know about.
+    const entries = Object.entries(obj).filter(([k]) => fieldByKey(k));
+    return new Map(entries);
+  } catch {
+    return null;
+  }
 }
 
 // --- Editor field markup -----------------------------------------------------
@@ -100,7 +115,7 @@ function viewMarkup(working) {
     <aside class="cm-editor">
       <div class="cm-editor-head">
         <h2>Website content</h2>
-        <p class="cm-lede">Click anything in the preview — or a field here — to edit. Changes preview live and only go live when you Save.</p>
+        <p class="cm-lede">Click text in the preview to edit it in place, or use the fields here. Images &amp; links are edited from these fields. Changes preview live and only go live when you Save.</p>
       </div>
       <div class="cm-fields">${groups}</div>
     </aside>
@@ -134,7 +149,10 @@ export async function renderContent(root, session) {
     return;
   }
 
-  const working = new Map(saved); // overrides only (defaults omitted)
+  // Unsaved edits from a previous render (tab switch / reload) take precedence,
+  // so nothing is ever lost between editing and saving.
+  const draft = readDraft();
+  const working = draft ? new Map(draft) : new Map(saved);
   const origImg = {}; // key -> built-in image src (captured from the iframe)
 
   root.innerHTML = viewMarkup(working);
@@ -153,8 +171,17 @@ export async function renderContent(root, session) {
     statusEl.textContent = msg;
     statusEl.className = `cm-save-status ${tone}`;
   };
+  if (draft && draft.size) markStatus('Unsaved changes', 'is-dirty');
 
-  // --- Apply one key's current effective value into the preview iframe -------
+  const persistDraft = () => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(Object.fromEntries(working)));
+    } catch {
+      /* storage full / unavailable — non-fatal */
+    }
+  };
+
+  // --- Write one key's effective value into the preview iframe ---------------
   const applyKeyToFrame = (key) => {
     const doc = getDoc();
     if (!doc) return;
@@ -178,21 +205,31 @@ export async function renderContent(root, session) {
     }
     const val = working.has(key) ? working.get(key) : f.default;
     doc.querySelectorAll(`[data-ck="${key}"]`).forEach((el) => {
+      if (el === doc.activeElement) return; // don't clobber the caret while typing
       if (isMultilineField(key)) el.innerHTML = nl2br(val);
       else if (isHtmlField(key)) el.innerHTML = val;
       else el.textContent = val;
     });
   };
 
+  // --- Keep the side-panel input in sync (skips the one being typed in) ------
+  const syncSideInput = (key, value) => {
+    const input = root.querySelector(`.cm-field[data-field="${key}"] .cm-value`);
+    if (input && input !== document.activeElement) input.value = value;
+  };
+
+  // --- Single source of truth for a value change -----------------------------
   const setWorking = (key, value) => {
     const f = fieldByKey(key);
     if (value === defaultForSave(f)) working.delete(key);
     else working.set(key, value);
+    persistDraft();
     applyKeyToFrame(key);
+    syncSideInput(key, value);
     markStatus('Unsaved changes', 'is-dirty');
   };
 
-  // --- Highlight + scroll a field into view (from preview clicks) -----------
+  // --- Highlight + reveal a field in the side panel --------------------------
   const focusField = (key) => {
     const fieldEl = root.querySelector(`.cm-field[data-field="${key}"]`);
     if (!fieldEl) return;
@@ -201,8 +238,8 @@ export async function renderContent(root, session) {
     root.querySelectorAll('.cm-field.is-focused').forEach((el) => el.classList.remove('is-focused'));
     fieldEl.classList.add('is-focused');
     fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const input = fieldEl.querySelector('textarea, input[type="text"]');
-    if (input) input.focus();
+    const input = fieldEl.querySelector('textarea, input[type="text"], .cm-upload-btn');
+    if (input && input.focus) input.focus();
   };
 
   // --- Wire the side editor fields ------------------------------------------
@@ -254,10 +291,18 @@ export async function renderContent(root, session) {
     const input = fieldEl.querySelector('.cm-value');
     input.addEventListener('input', () => setWorking(key, input.value));
     fieldEl.querySelector('.cm-reset').addEventListener('click', () => {
-      input.value = fieldByKey(key).default ?? '';
-      setWorking(key, input.value);
+      const def = fieldByKey(key).default ?? '';
+      input.value = def;
+      setWorking(key, def);
     });
   });
+
+  // --- Read a value out of a contenteditable preview element -----------------
+  const readEl = (el, key) => {
+    if (isHtmlField(key)) return el.innerHTML.trim();
+    if (isMultilineField(key)) return el.innerText.replace(/\u00a0/g, ' ').replace(/\n{2,}/g, '\n').trim();
+    return el.textContent.replace(/\s+/g, ' ').trim();
+  };
 
   // --- Inject click-to-edit affordances into the preview --------------------
   const injectEditAffordances = (doc) => {
@@ -274,8 +319,6 @@ export async function renderContent(root, session) {
     doc.body.appendChild(badge);
 
     let hoveredKey = null;
-    const keyOf = (el) => el.dataset.ck || el.dataset.ckImg || el.dataset.ckHref;
-
     const positionBadge = (el) => {
       const win = doc.defaultView;
       const r = el.getBoundingClientRect();
@@ -284,10 +327,47 @@ export async function renderContent(root, session) {
       badge.hidden = false;
     };
 
-    doc.querySelectorAll('[data-ck], [data-ck-img], [data-ck-href]').forEach((el) => {
+    // Text — editable in place.
+    doc.querySelectorAll('[data-ck]').forEach((el) => {
+      const key = el.dataset.ck;
+      const f = fieldByKey(key);
+      if (!f) return;
+      el.classList.add('kps-editable');
+
+      // Flatten any GSAP letter-split so editing/caret behaves normally.
+      if (!isHtmlField(key) && !isMultilineField(key)) {
+        el.textContent = working.has(key) ? working.get(key) : f.default;
+      }
+
+      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('spellcheck', 'false');
+      // If the element is (or is inside) a link, stop navigation on click.
+      el.addEventListener('click', (e) => {
+        if (el.closest('a')) e.preventDefault();
+      });
+      el.addEventListener('mouseenter', () => positionBadge(el));
+      el.addEventListener('focus', () => {
+        hoveredKey = key;
+        const fieldEl = root.querySelector(`.cm-field[data-field="${key}"]`);
+        if (fieldEl) {
+          root.querySelectorAll('.cm-field.is-focused').forEach((x) => x.classList.remove('is-focused'));
+          fieldEl.classList.add('is-focused');
+          const d = fieldEl.closest('details');
+          if (d) d.open = true;
+        }
+      });
+      const onEdit = () => setWorking(key, readEl(el, key));
+      el.addEventListener('input', onEdit);
+      el.addEventListener('blur', onEdit);
+    });
+
+    // Images and pure link URLs — click opens the side field.
+    doc.querySelectorAll('[data-ck-img], [data-ck-href]').forEach((el) => {
+      const key = el.dataset.ckImg || el.dataset.ckHref;
+      if (!key || el.hasAttribute('data-ck')) return; // text handler already owns it
       el.classList.add('kps-editable');
       el.addEventListener('mouseenter', () => {
-        hoveredKey = keyOf(el);
+        hoveredKey = key;
         positionBadge(el);
       });
       el.addEventListener(
@@ -295,8 +375,7 @@ export async function renderContent(root, session) {
         (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const k = keyOf(el);
-          if (k) focusField(k);
+          focusField(key);
         },
         true,
       );
@@ -317,17 +396,17 @@ export async function renderContent(root, session) {
       origImg[el.dataset.ckImg] = el.getAttribute('src');
     });
 
+    injectEditAffordances(doc);
+
     // Reflect current working edits in the preview.
     working.forEach((_v, k) => applyKeyToFrame(k));
 
-    // Fill image field thumbnails that are showing the built-in photo.
+    // Fill image thumbnails that are showing the built-in photo.
     root.querySelectorAll('.cm-field[data-type="image"]').forEach((fieldEl) => {
       const key = fieldEl.dataset.field;
       const thumb = fieldEl.querySelector('[data-thumb]');
       if (!working.get(key) && origImg[key]) thumb.src = origImg[key];
     });
-
-    injectEditAffordances(doc);
   };
 
   frame.addEventListener('load', onFrameLoad);
@@ -351,6 +430,12 @@ export async function renderContent(root, session) {
   });
 
   root.querySelector('#cmRevert').addEventListener('click', () => {
+    if (!confirm('Discard all unsaved changes?')) return;
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
     renderContent(root, session); // reload from last-saved state
   });
 
@@ -361,13 +446,20 @@ export async function renderContent(root, session) {
 
     const now = new Date().toISOString();
     const uid = session?.user?.id || null;
-    const toUpsert = [];
-    const toDelete = [];
 
-    contentFields.forEach((f) => {
-      const v = working.get(f.key);
-      if (v === undefined || v === defaultForSave(f)) toDelete.push(f.key);
-      else toUpsert.push({ key: f.key, value: v, updated_at: now, updated_by: uid });
+    // Safe diff: upsert current overrides; delete only overrides that were
+    // saved before but the admin has since removed. Never mass-delete defaults.
+    const toUpsert = [];
+    working.forEach((v, key) => {
+      const f = fieldByKey(key);
+      if (f && v !== undefined && v !== defaultForSave(f)) {
+        toUpsert.push({ key, value: v, updated_at: now, updated_by: uid });
+      }
+    });
+    const toDelete = [];
+    saved.forEach((_v, key) => {
+      const f = fieldByKey(key);
+      if (!working.has(key) || working.get(key) === defaultForSave(f)) toDelete.push(key);
     });
 
     try {
@@ -378,6 +470,14 @@ export async function renderContent(root, session) {
       if (toDelete.length) {
         const { error } = await supabase.from('site_content').delete().in('key', toDelete);
         if (error) throw error;
+      }
+      // Success — this is now the saved baseline; clear the draft.
+      saved.clear();
+      working.forEach((v, k) => saved.set(k, v));
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
       }
       markStatus(`Saved ✓ ${new Date().toLocaleTimeString()}`, 'is-saved');
     } catch (err) {
