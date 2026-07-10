@@ -4,7 +4,7 @@
 // for the two sections: Insights (analytics) and Content (the CMS editor).
 // =============================================================================
 import { signOut } from './auth.js';
-import { renderInsights } from './dashboard.js';
+import { renderInsights, disposeInsights } from './dashboard.js';
 import { renderContent } from './content.js';
 
 function shell(email) {
@@ -43,6 +43,8 @@ export function renderApp(root, session, onSignOut) {
     if (name === current) return;
     current = name;
     tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
+    // Stop the insights auto-refresh timers before leaving that view.
+    disposeInsights();
     view.innerHTML = '';
     if (name === 'content') renderContent(view, session);
     else renderInsights(view, session);
@@ -51,6 +53,7 @@ export function renderApp(root, session, onSignOut) {
   tabs.forEach((t) => t.addEventListener('click', () => show(t.dataset.tab)));
 
   root.querySelector('#signOutBtn').addEventListener('click', async () => {
+    disposeInsights();
     await signOut();
     onSignOut();
   });

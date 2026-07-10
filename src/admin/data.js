@@ -66,16 +66,72 @@ export async function fetchEventCounts() {
   return data;
 }
 
+export async function fetchRecentEvents(limit = 60) {
+  const { data, error } = await supabase
+    .from('page_events')
+    .select('event_type, event_label, section, created_at, session_key')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+const SESSION_LIST_COLUMNS =
+  'session_key, started_at, last_seen_at, total_time_seconds, city, region, country, country_code, device_type, browser, os, location_granted, location_source';
+
 export async function fetchRecentSessions(limit = 30) {
   const { data, error } = await supabase
     .from('visitor_sessions')
-    .select(
-      'session_key, started_at, total_time_seconds, city, region, country, country_code, device_type, browser, os, location_granted, location_source',
-    )
+    .select(SESSION_LIST_COLUMNS)
     .order('started_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
   return data;
+}
+
+export async function fetchAllSessions(limit = 300) {
+  const { data, error } = await supabase
+    .from('visitor_sessions')
+    .select(SESSION_LIST_COLUMNS)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+// Sessions whose heartbeat fired recently — i.e. "viewing right now".
+export async function fetchLiveSessions(windowSeconds = 45) {
+  const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('visitor_sessions')
+    .select(SESSION_LIST_COLUMNS)
+    .gte('last_seen_at', since)
+    .order('last_seen_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+// Full drill-down for one visitor: their session, section time and event trail.
+export async function fetchSessionDetail(sessionKey) {
+  const [sessionRes, sectionsRes, eventsRes] = await Promise.all([
+    supabase.from('visitor_sessions').select('*').eq('session_key', sessionKey).single(),
+    supabase
+      .from('section_views')
+      .select('section, time_spent_seconds, view_count, updated_at')
+      .eq('session_key', sessionKey)
+      .order('time_spent_seconds', { ascending: false }),
+    supabase
+      .from('page_events')
+      .select('event_type, event_label, section, created_at')
+      .eq('session_key', sessionKey)
+      .order('created_at', { ascending: true }),
+  ]);
+  if (sessionRes.error) throw sessionRes.error;
+  return {
+    session: sessionRes.data,
+    sections: sectionsRes.data || [],
+    events: eventsRes.data || [],
+  };
 }
 
 // Sessions that resolved to real coordinates — for the map.
