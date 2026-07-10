@@ -235,11 +235,116 @@
 
 .empty { color: var(--a-text-dim); font-size: 0.88rem; padding: 0.6rem 0; }
 
+/* ---- Tabs ----------------------------------------------------------------- */
+.tabs { display: flex; gap: 0.4rem; background: rgba(0, 0, 0, 0.25); padding: 0.3rem; border-radius: 12px; border: 1px solid var(--a-border); }
+.tab {
+  cursor: pointer;
+  font-family: var(--fb);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--a-text-dim);
+  background: transparent;
+  border: none;
+  padding: 0.45rem 1.1rem;
+  border-radius: 9px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.tab:hover { color: var(--a-text); }
+.tab.is-active { color: var(--a-ink); background: linear-gradient(120deg, var(--a-rose-hi), var(--a-rose)); }
+
+.view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ---- Sitewide breakdown reach bars ---------------------------------------- */
+.reach { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 8rem; }
+.reach-bar { flex: 1; height: 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.3); overflow: hidden; min-width: 4rem; }
+.reach-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--a-rose), var(--a-rose-hi)); }
+.reach-pct { font-variant-numeric: tabular-nums; color: var(--a-silver-hi); font-size: 0.8rem; }
+
+/* ---- Content Manager ------------------------------------------------------ */
+.cm-loading { padding: 2rem; color: var(--a-text-dim); }
+.cm-toolbar { justify-content: space-between; align-items: center; }
+.cm-lede { margin: 0; font-size: 0.85rem; color: var(--a-text-dim); max-width: 40rem; }
+.cm-toolbar-actions { display: flex; align-items: center; gap: 0.7rem; }
+.cm-save-status { font-size: 0.78rem; color: var(--a-rose-hi); }
+
+.cm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.1rem; align-items: start; }
+.cm-group { display: flex; flex-direction: column; gap: 1rem; }
+
+.cm-field { display: flex; flex-direction: column; gap: 0.4rem; }
+.cm-field > label { font-size: 0.78rem; letter-spacing: 0.02em; color: var(--a-text-dim); }
+.cm-hint { color: var(--a-rose); font-size: 0.72rem; }
+.cm-field input[type="text"], .cm-field textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--a-border);
+  color: var(--a-silver-hi);
+  font-family: var(--fb);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.cm-field input[type="text"]:focus, .cm-field textarea:focus { outline: none; border-color: var(--a-rose); }
+.cm-field-actions { display: flex; justify-content: flex-end; }
+.cm-reset {
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: var(--a-text-dim);
+  font-size: 0.74rem;
+  text-decoration: underline;
+  padding: 0.1rem 0;
+}
+.cm-reset:hover:not(:disabled) { color: var(--a-rose-hi); }
+.cm-reset:disabled { opacity: 0.4; cursor: default; }
+
+.cm-img-row { display: flex; gap: 1rem; align-items: flex-start; }
+.cm-img-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--a-border);
+  background: rgba(0, 0, 0, 0.3);
+  flex: 0 0 auto;
+}
+.cm-img-preview--empty {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--a-text-dim);
+  padding: 0.4rem;
+}
+.cm-img-actions { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+.cm-upload-btn {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--a-ink);
+  background: linear-gradient(120deg, var(--a-rose-hi), var(--a-rose));
+  padding: 0.45rem 0.9rem;
+  border-radius: 9px;
+}
+.cm-upload-btn:hover { filter: brightness(1.06); }
+.cm-status { font-size: 0.74rem; color: var(--a-rose-hi); }
+
 /* ---- Responsive ----------------------------------------------------------- */
 @media (max-width: 1000px) {
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: 1fr; }
   .panel--wide { grid-column: auto; }
+  .cm-grid { grid-template-columns: 1fr; }
+  .dash-top { justify-content: center; }
 }
 @media (max-width: 560px) {
   .kpi-row { grid-template-columns: 1fr; }

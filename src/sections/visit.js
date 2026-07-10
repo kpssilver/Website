@@ -1,4 +1,5 @@
 import { site } from '../config/site.js';
+import { cd } from '../content/schema.js';
 
 // "Visit Us" — address, hours, contact and the WhatsApp CTA.
 // The Google Maps directions link and WhatsApp deep link both come from
@@ -11,8 +12,8 @@ export function Visit() {
   <div class="wrap visit-grid">
     <div>
       <p class="eyebrow rv">Visit Us</p>
-      <h2 data-split>Silver is bought in person</h2>
-      <p class="lede rv">Hold it. Weigh it. Compare it under the light. Our store in Nagarthpet has worked that way since 1996. Come see why.</p>
+      <h2 data-split data-ck="visit.title">${cd('visit.title')}</h2>
+      <p class="lede rv" data-ck="visit.lede">${cd('visit.lede')}</p>
 
       <div class="visit-block rv">
         <h3>Address</h3>

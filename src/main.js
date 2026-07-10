@@ -11,6 +11,7 @@ import { renderPage } from './sections/index.js';
 import { initInteractions } from './interactions/animations.js';
 import { initContact } from './interactions/contact.js';
 import { initAnalytics } from './analytics/tracker.js';
+import { applyContent } from './content/apply.js';
 
 const app = document.getElementById('app');
 app.innerHTML = renderPage();
@@ -18,6 +19,10 @@ app.innerHTML = renderPage();
 // Sections are in the DOM now — wire the contact chooser and the motion.
 initContact();
 initInteractions();
+
+// Apply any admin-edited content (titles, body text, images) over the
+// built-in defaults. Runs async; the page shows defaults until it resolves.
+applyContent();
 
 // Visitor analytics: location (with consent), time-on-section and interactions.
 // Degrades silently if Supabase env vars aren't set.

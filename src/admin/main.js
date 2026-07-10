@@ -6,12 +6,12 @@ import '../styles/admin.css';
 import { isSupabaseConfigured } from '../config/supabase.js';
 import { getSession } from './auth.js';
 import { renderLogin } from './login.js';
-import { renderDashboard } from './dashboard.js';
+import { renderApp } from './app.js';
 
 const root = document.getElementById('admin-root');
 
 async function showDashboard(session) {
-  await renderDashboard(root, session, showLogin);
+  renderApp(root, session, showLogin);
 }
 
 function showLogin() {

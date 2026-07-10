@@ -9,6 +9,7 @@ import poojaThali from '../assets/gallery/pooja-thali.webp';
 import fruitBowl from '../assets/gallery/fruit-bowl.webp';
 import pots from '../assets/gallery/pots.webp';
 import deepam from '../assets/gallery/deepam.webp';
+import { cd } from '../content/schema.js';
 
 const pieces = [
   { src: poojaThali, title: 'Pooja Thali', tag: 'Pooja Articles' },
@@ -24,7 +25,7 @@ export function Showcase() {
       <li class="showcase-slide" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${pieces.length}: ${p.title}">
         <figure class="showcase-fig">
           <div class="showcase-media">
-            <img src="${p.src}" alt="${p.title} in silver, styled by KPS Silver" loading="lazy" decoding="async" draggable="false" />
+            <img src="${p.src}" data-ck-img="showcase.img${i + 1}" alt="${p.title} in silver, styled by KPS Silver" loading="lazy" decoding="async" draggable="false" />
           </div>
           <figcaption class="showcase-cap">
             <span class="showcase-cap-tag">${p.tag}</span>
@@ -39,8 +40,8 @@ export function Showcase() {
 <section id="showcase" data-theme-trigger="hero" aria-roledescription="carousel" aria-label="Silver pieces in focus">
   <div class="wrap showcase-head">
     <p class="eyebrow rv">In Focus</p>
-    <h2 data-split>A closer look at the silver we make</h2>
-    <p class="lede rv">Each piece photographed in the setting it was made for, the pooja room, the table, the threshold. Swipe through, then find its kind in the collection below.</p>
+    <h2 data-split data-ck="showcase.title">${cd('showcase.title')}</h2>
+    <p class="lede rv" data-ck="showcase.lede">${cd('showcase.lede')}</p>
   </div>
 
   <div class="showcase-rail rv">

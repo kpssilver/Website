@@ -1,4 +1,5 @@
 import { promises } from '../data/promise.js';
+import { cd } from '../content/schema.js';
 
 // "The KPS Promise" — the section where the backdrop flips to silver.
 export function Promise() {
@@ -17,7 +18,7 @@ export function Promise() {
   <div class="wrap">
     <div>
       <p class="eyebrow rv">The KPS Promise</p>
-      <h2 data-split>Bought the way silver has always been bought</h2>
+      <h2 data-split data-ck="promise.title">${cd('promise.title')}</h2>
     </div>
     <div class="promise-grid">${items}
     </div>

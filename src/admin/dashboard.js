@@ -1,12 +1,11 @@
 // =============================================================================
-// SUPER ADMIN DASHBOARD
-// Pulls every analytics slice in parallel and renders KPI cards, a visitor
-// map, engagement/traffic/device/event charts and a recent-sessions table.
+// INSIGHTS VIEW
+// Renders into a container: KPI cards, a sitewide breakdown, a visitor map and
+// engagement/traffic/device/event charts plus a recent-sessions table.
 // =============================================================================
 import Chart from 'chart.js/auto';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { signOut } from './auth.js';
 import {
   fetchSummary,
   fetchDailyTraffic,
@@ -61,94 +60,89 @@ function relTime(iso) {
 
 function flag(cc) {
   if (!cc || cc.length !== 2) return '🌐';
-  return cc
-    .toUpperCase()
-    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  return cc.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
 const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-// --- Shell -------------------------------------------------------------------
-function shell(email) {
+// --- View markup -------------------------------------------------------------
+function viewMarkup() {
   return `
-<div class="dash">
-  <header class="dash-top">
-    <div class="dash-title">
-      <span class="dash-mark">KPS</span>
-      <div>
-        <h1>Visitor Insights</h1>
-        <p>KPS Silver · Super Admin</p>
+  <div class="view-toolbar">
+    <span class="dash-updated" id="dashUpdated"></span>
+    <button class="dash-btn" id="refreshBtn" title="Refresh">↻ Refresh</button>
+  </div>
+
+  <section class="kpi-row" id="kpiRow"></section>
+
+  <section class="dash-grid">
+    <div class="panel panel--wide">
+      <div class="panel-head"><h2>Sitewide breakdown</h2></div>
+      <div class="table-scroll">
+        <table class="sessions-table" id="breakdownTable">
+          <thead>
+            <tr><th>Section</th><th>Reach</th><th>Unique viewers</th><th>Total time</th><th>Avg time / viewer</th><th>Share of time</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
-    <div class="dash-top-right">
-      <span class="dash-updated" id="dashUpdated"></span>
-      <span class="dash-user">${email || 'admin'}</span>
-      <button class="dash-btn" id="refreshBtn" title="Refresh">↻ Refresh</button>
-      <button class="dash-btn dash-btn--ghost" id="signOutBtn">Sign out</button>
+
+    <div class="panel panel--wide">
+      <div class="panel-head">
+        <h2>Where visitors are viewing from</h2>
+        <div class="map-filter" id="mapFilter">
+          <button class="chip is-active" data-days="">All</button>
+          <button class="chip" data-days="30">30d</button>
+          <button class="chip" data-days="7">7d</button>
+        </div>
+      </div>
+      <div id="map" class="map"></div>
+      <p class="panel-note" id="mapNote"></p>
     </div>
-  </header>
 
-  <main class="dash-main">
-    <section class="kpi-row" id="kpiRow"></section>
+    <div class="panel">
+      <div class="panel-head"><h2>Daily traffic</h2></div>
+      <div class="chart-box"><canvas id="trafficChart"></canvas></div>
+    </div>
 
-    <section class="dash-grid">
-      <div class="panel panel--wide">
-        <div class="panel-head">
-          <h2>Where visitors are viewing from</h2>
-          <div class="map-filter" id="mapFilter">
-            <button class="chip is-active" data-days="">All</button>
-            <button class="chip" data-days="30">30d</button>
-            <button class="chip" data-days="7">7d</button>
-          </div>
-        </div>
-        <div id="map" class="map"></div>
-        <p class="panel-note" id="mapNote"></p>
+    <div class="panel">
+      <div class="panel-head"><h2>Time spent per section</h2></div>
+      <div class="chart-box"><canvas id="sectionChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Devices</h2></div>
+      <div class="chart-box chart-box--sm"><canvas id="deviceChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Interactions</h2></div>
+      <div class="chart-box"><canvas id="eventChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Top countries</h2></div>
+      <div class="rank-list" id="countryList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Top cities</h2></div>
+      <div class="rank-list" id="cityList"></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel-head"><h2>Recent sessions</h2></div>
+      <div class="table-scroll">
+        <table class="sessions-table" id="sessionsTable">
+          <thead>
+            <tr><th>When</th><th>Location</th><th>Device</th><th>Browser / OS</th><th>Time on site</th><th>Source</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Daily traffic</h2></div>
-        <div class="chart-box"><canvas id="trafficChart"></canvas></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Time spent per section</h2></div>
-        <div class="chart-box"><canvas id="sectionChart"></canvas></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Devices</h2></div>
-        <div class="chart-box chart-box--sm"><canvas id="deviceChart"></canvas></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Interactions</h2></div>
-        <div class="chart-box"><canvas id="eventChart"></canvas></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Top countries</h2></div>
-        <div class="rank-list" id="countryList"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Top cities</h2></div>
-        <div class="rank-list" id="cityList"></div>
-      </div>
-
-      <div class="panel panel--wide">
-        <div class="panel-head"><h2>Recent sessions</h2></div>
-        <div class="table-scroll">
-          <table class="sessions-table" id="sessionsTable">
-            <thead>
-              <tr><th>When</th><th>Location</th><th>Device</th><th>Browser / OS</th><th>Time on site</th><th>Source</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </main>
-</div>`;
+    </div>
+  </section>`;
 }
 
 // --- KPI cards ----------------------------------------------------------------
@@ -169,6 +163,38 @@ function renderKpis(root, s) {
       <span class="kpi-sub">${c.sub}</span>
     </div>`,
     )
+    .join('');
+}
+
+// --- Sitewide breakdown ------------------------------------------------------
+function renderBreakdown(root, sections, totalSessions) {
+  const body = root.querySelector('#breakdownTable tbody');
+  if (!sections.length) {
+    body.innerHTML = `<tr><td colspan="6" class="empty">No section data yet.</td></tr>`;
+    return;
+  }
+  const sorted = [...sections].sort((a, b) => b.total_time_seconds - a.total_time_seconds);
+  const totalTime = sorted.reduce((acc, r) => acc + Number(r.total_time_seconds || 0), 0) || 1;
+
+  body.innerHTML = sorted
+    .map((r) => {
+      const reach = totalSessions ? Math.round((r.unique_viewers / totalSessions) * 100) : 0;
+      const share = Math.round((r.total_time_seconds / totalTime) * 100);
+      return `
+      <tr>
+        <td>${titleCase(r.section)}</td>
+        <td>
+          <span class="reach">
+            <span class="reach-bar"><span style="width:${Math.min(reach, 100)}%"></span></span>
+            <span class="reach-pct">${reach}%</span>
+          </span>
+        </td>
+        <td>${nf(r.unique_viewers)}</td>
+        <td>${fmtDuration(r.total_time_seconds)}</td>
+        <td>${fmtDuration(r.avg_time_seconds)}</td>
+        <td>${share}%</td>
+      </tr>`;
+    })
     .join('');
 }
 
@@ -345,7 +371,6 @@ function renderMap(rows) {
   });
 
   if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 8 });
-  // Leaflet needs a nudge when the container is sized after creation.
   setTimeout(() => map.invalidateSize(), 100);
   return pts.length;
 }
@@ -369,6 +394,7 @@ async function load(root, mapDays) {
     ]);
 
   renderKpis(root, summary);
+  renderBreakdown(root, sections, summary.total_sessions);
   registry.charts.push(makeTrafficChart(root.querySelector('#trafficChart'), daily));
   registry.charts.push(makeSectionChart(root.querySelector('#sectionChart'), sections));
   registry.charts.push(makeDeviceChart(root.querySelector('#deviceChart'), devices));
@@ -391,9 +417,8 @@ async function load(root, mapDays) {
   root.querySelector('#dashUpdated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 
-export async function renderDashboard(root, session, onSignOut) {
-  const email = session?.user?.email || 'admin';
-  root.innerHTML = shell(email);
+export async function renderInsights(root) {
+  root.innerHTML = viewMarkup();
 
   let mapDays = null;
 
@@ -410,12 +435,7 @@ export async function renderDashboard(root, session, onSignOut) {
     }
   };
 
-  root.querySelector('#signOutBtn').addEventListener('click', async () => {
-    await signOut();
-    onSignOut();
-  });
   root.querySelector('#refreshBtn').addEventListener('click', runLoad);
-
   root.querySelectorAll('#mapFilter .chip').forEach((chip) =>
     chip.addEventListener('click', () => {
       root.querySelectorAll('#mapFilter .chip').forEach((c) => c.classList.remove('is-active'));
