@@ -9,6 +9,18 @@
 // =============================================================================
 import { supabase, isSupabaseConfigured } from '../config/supabase.js';
 import { isHtmlField, isMultilineField, nl2br } from './schema.js';
+import { showcaseSlidesHtml, parseShowcaseItems } from '../data/showcase.js';
+import { initShowcase } from '../interactions/animations.js';
+
+// Rebuild the showcase carousel from a saved gallery and re-init its behaviour.
+function applyShowcaseGallery(raw) {
+  const items = parseShowcaseItems(raw);
+  if (!items) return;
+  const track = document.querySelector('.showcase-track');
+  if (!track) return;
+  track.innerHTML = showcaseSlidesHtml(items);
+  initShowcase();
+}
 
 // Apply a key→value map of overrides to the current document.
 export function applyContentMap(map) {
@@ -35,6 +47,8 @@ export function applyContentMap(map) {
     const val = get(el.dataset.ckHref);
     if (val) el.setAttribute('href', val);
   });
+
+  applyShowcaseGallery(get('showcase.items'));
 }
 
 // Fetch saved overrides from Supabase and apply them (public landing page).

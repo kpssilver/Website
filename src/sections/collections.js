@@ -8,11 +8,12 @@ export function Collections() {
   const cards = collections
     .map(
       (c) => `
-      <article class="card">
+      <a class="card" href="/shop.html?category=${encodeURIComponent(c.category)}">
         ${c.icon}
         <h3>${c.title}</h3>
         <p>${c.copy}</p>
-      </article>`,
+        <span class="card-cta">View collection <span aria-hidden="true">→</span></span>
+      </a>`,
     )
     .join('');
 

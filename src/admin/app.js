@@ -6,6 +6,8 @@
 import { signOut } from './auth.js';
 import { renderInsights, disposeInsights } from './dashboard.js';
 import { renderContent } from './content.js';
+import { renderProducts } from './products.js';
+import { renderShopActivity, disposeShopActivity } from './shop-activity.js';
 
 function shell(email) {
   return `
@@ -20,6 +22,8 @@ function shell(email) {
     </div>
     <nav class="tabs" id="tabs">
       <button class="tab is-active" data-tab="insights">Insights</button>
+      <button class="tab" data-tab="shop">Shop activity</button>
+      <button class="tab" data-tab="products">Products</button>
       <button class="tab" data-tab="content">Content</button>
     </nav>
     <div class="dash-top-right">
@@ -43,10 +47,13 @@ export function renderApp(root, session, onSignOut) {
     if (name === current) return;
     current = name;
     tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
-    // Stop the insights auto-refresh timers before leaving that view.
+    // Stop any auto-refresh timers before leaving a view.
     disposeInsights();
+    disposeShopActivity();
     view.innerHTML = '';
     if (name === 'content') renderContent(view, session);
+    else if (name === 'products') renderProducts(view, session);
+    else if (name === 'shop') renderShopActivity(view, session);
     else renderInsights(view, session);
   };
 
@@ -54,6 +61,7 @@ export function renderApp(root, session, onSignOut) {
 
   root.querySelector('#signOutBtn').addEventListener('click', async () => {
     disposeInsights();
+    disposeShopActivity();
     await signOut();
     onSignOut();
   });

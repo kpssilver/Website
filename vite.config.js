@@ -15,9 +15,10 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2019',
     rollupOptions: {
-      // Multi-page build: the public landing page + the private admin dashboard.
+      // Multi-page build: landing page, the storefront and the admin dashboard.
       input: {
         main: resolve(__dirname, 'index.html'),
+        shop: resolve(__dirname, 'shop.html'),
         admin: resolve(__dirname, 'admin.html'),
       },
     },

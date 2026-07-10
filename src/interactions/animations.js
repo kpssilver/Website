@@ -54,104 +54,7 @@ export function initInteractions() {
   setGlass();
 
   /* ---------- showcase carousel (native scroll-snap + buttons + dots) ---------- */
-  const showcase = document.getElementById('showcase');
-  if (showcase) {
-    const viewport = showcase.querySelector('.showcase-viewport');
-    const slides = Array.from(showcase.querySelectorAll('.showcase-slide'));
-    const prevBtn = showcase.querySelector('[data-sc-prev]');
-    const nextBtn = showcase.querySelector('[data-sc-next]');
-    const dotsWrap = showcase.querySelector('.showcase-dots');
-    let current = 0;
-
-    slides.forEach((_, i) => {
-      const dot = document.createElement('button');
-      dot.type = 'button';
-      dot.className = 'sc-dot';
-      dot.setAttribute('role', 'tab');
-      dot.setAttribute('aria-label', `Show piece ${i + 1}`);
-      dot.addEventListener('click', () => go(i));
-      dotsWrap.appendChild(dot);
-    });
-    const dots = Array.from(dotsWrap.children);
-
-    // scroll so slide i sits dead-centre — measured from live rects so it is
-    // immune to offsetParent quirks and never nudges the page vertically.
-    const go = (i) => {
-      current = Math.max(0, Math.min(slides.length - 1, i));
-      const s = slides[current].getBoundingClientRect();
-      const v = viewport.getBoundingClientRect();
-      const delta = s.left + s.width / 2 - (v.left + v.width / 2);
-      viewport.scrollTo({ left: viewport.scrollLeft + delta, behavior: 'smooth' });
-    };
-
-    const sync = () => {
-      const v = viewport.getBoundingClientRect();
-      const vMid = v.left + v.width / 2;
-      let best = 0;
-      let bestDist = Infinity;
-      slides.forEach((s, i) => {
-        const r = s.getBoundingClientRect();
-        const dist = Math.abs(r.left + r.width / 2 - vMid);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = i;
-        }
-      });
-      current = best;
-      dots.forEach((d, i) => d.setAttribute('aria-selected', String(i === best)));
-      if (prevBtn) prevBtn.disabled = best === 0;
-      if (nextBtn) nextBtn.disabled = best === slides.length - 1;
-    };
-
-    let syncRaf;
-    viewport.addEventListener(
-      'scroll',
-      () => {
-        cancelAnimationFrame(syncRaf);
-        syncRaf = requestAnimationFrame(sync);
-      },
-      { passive: true },
-    );
-    prevBtn?.addEventListener('click', () => go(current - 1));
-    nextBtn?.addEventListener('click', () => go(current + 1));
-    viewport.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        go(current + 1);
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        go(current - 1);
-      }
-    });
-    addEventListener('resize', sync, { passive: true });
-    sync();
-
-    // gentle autoplay, only when motion is welcome. Pauses on interaction,
-    // when the tab is hidden, and whenever the carousel is off-screen.
-    if (!reduceMotion) {
-      let timer = null;
-      const stop = () => {
-        if (timer) {
-          clearInterval(timer);
-          timer = null;
-        }
-      };
-      const start = () => {
-        stop();
-        timer = setInterval(() => go(current >= slides.length - 1 ? 0 : current + 1), 4500);
-      };
-      ['pointerenter', 'focusin', 'pointerdown', 'touchstart'].forEach((ev) =>
-        showcase.addEventListener(ev, stop, { passive: true }),
-      );
-      ['pointerleave', 'focusout'].forEach((ev) =>
-        showcase.addEventListener(ev, start, { passive: true }),
-      );
-      document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
-      new IntersectionObserver((entries) => entries.forEach((en) => (en.isIntersecting ? start() : stop())), {
-        threshold: 0.35,
-      }).observe(showcase);
-    }
-  }
+  initShowcase();
 
   if (reduceMotion) return; // static but fully readable fallback
 
@@ -343,4 +246,124 @@ export function initInteractions() {
       });
     });
   }
+}
+
+// =============================================================================
+// SHOWCASE CAROUSEL — native scroll-snap strip with buttons + dots + autoplay.
+// Exported so it can be re-initialised after the gallery is replaced at runtime
+// (e.g. when the admin edits the showcase). Fully tears down any previous
+// instance first, so re-calling never leaks listeners or timers.
+// =============================================================================
+export function initShowcase() {
+  const showcase = document.getElementById('showcase');
+  if (!showcase) return;
+  if (showcase.__scDispose) showcase.__scDispose();
+
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const viewport = showcase.querySelector('.showcase-viewport');
+  const slides = Array.from(showcase.querySelectorAll('.showcase-slide'));
+  const prevBtn = showcase.querySelector('[data-sc-prev]');
+  const nextBtn = showcase.querySelector('[data-sc-next]');
+  const dotsWrap = showcase.querySelector('.showcase-dots');
+  if (!viewport || !dotsWrap || !slides.length) return;
+  let current = 0;
+
+  const cleanups = [];
+  const on = (el, ev, fn, opts) => {
+    if (!el) return;
+    el.addEventListener(ev, fn, opts);
+    cleanups.push(() => el.removeEventListener(ev, fn, opts));
+  };
+
+  dotsWrap.innerHTML = '';
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'sc-dot';
+    dot.setAttribute('role', 'tab');
+    dot.setAttribute('aria-label', `Show piece ${i + 1}`);
+    dot.addEventListener('click', () => go(i));
+    dotsWrap.appendChild(dot);
+  });
+  const dots = Array.from(dotsWrap.children);
+
+  const go = (i) => {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    const s = slides[current].getBoundingClientRect();
+    const v = viewport.getBoundingClientRect();
+    const delta = s.left + s.width / 2 - (v.left + v.width / 2);
+    viewport.scrollTo({ left: viewport.scrollLeft + delta, behavior: 'smooth' });
+  };
+
+  const sync = () => {
+    const v = viewport.getBoundingClientRect();
+    const vMid = v.left + v.width / 2;
+    let best = 0;
+    let bestDist = Infinity;
+    slides.forEach((s, i) => {
+      const r = s.getBoundingClientRect();
+      const dist = Math.abs(r.left + r.width / 2 - vMid);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    });
+    current = best;
+    dots.forEach((d, i) => d.setAttribute('aria-selected', String(i === best)));
+    if (prevBtn) prevBtn.disabled = best === 0;
+    if (nextBtn) nextBtn.disabled = best === slides.length - 1;
+  };
+
+  let syncRaf;
+  on(
+    viewport,
+    'scroll',
+    () => {
+      cancelAnimationFrame(syncRaf);
+      syncRaf = requestAnimationFrame(sync);
+    },
+    { passive: true },
+  );
+  on(prevBtn, 'click', () => go(current - 1));
+  on(nextBtn, 'click', () => go(current + 1));
+  on(viewport, 'keydown', (e) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      go(current + 1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      go(current - 1);
+    }
+  });
+  on(window, 'resize', sync, { passive: true });
+  sync();
+
+  let timer = null;
+  const stop = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+  let io;
+  if (!reduceMotion) {
+    const start = () => {
+      stop();
+      timer = setInterval(() => go(current >= slides.length - 1 ? 0 : current + 1), 4500);
+    };
+    ['pointerenter', 'focusin', 'pointerdown', 'touchstart'].forEach((ev) => on(showcase, ev, stop, { passive: true }));
+    ['pointerleave', 'focusout'].forEach((ev) => on(showcase, ev, start, { passive: true }));
+    on(document, 'visibilitychange', () => (document.hidden ? stop() : start()));
+    io = new IntersectionObserver((entries) => entries.forEach((en) => (en.isIntersecting ? start() : stop())), {
+      threshold: 0.35,
+    });
+    io.observe(showcase);
+  }
+
+  showcase.__scDispose = () => {
+    cleanups.forEach((fn) => fn());
+    stop();
+    if (io) io.disconnect();
+    showcase.__scDispose = null;
+  };
 }

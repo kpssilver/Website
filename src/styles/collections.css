@@ -29,3 +29,9 @@
 .card:hover svg{stroke:var(--rose-hi);transform:translateY(-4px)}
 .card h3{font-family:var(--fd);font-weight:400;font-size:1.28rem;letter-spacing:.05em;color:var(--silver-hi)}
 .card p{font-size:.86rem;font-weight:300;color:var(--silver-dim);line-height:1.55}
+.card-cta{
+  margin-top:auto;padding-top:.9rem;font-size:.82rem;font-weight:600;letter-spacing:.02em;
+  color:var(--rose-hi);display:inline-flex;align-items:center;gap:.4rem;
+}
+.card-cta span{transition:transform .35s cubic-bezier(.3,0,.2,1)}
+.card:hover .card-cta span{transform:translateX(5px)}

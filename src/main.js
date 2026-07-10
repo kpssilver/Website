@@ -8,7 +8,7 @@
 // =============================================================================
 import './styles/index.css';
 import { renderPage } from './sections/index.js';
-import { initInteractions } from './interactions/animations.js';
+import { initInteractions, initShowcase } from './interactions/animations.js';
 import { initContact } from './interactions/contact.js';
 import { initAnalytics } from './analytics/tracker.js';
 import { applyContent, applyContentMap } from './content/apply.js';
@@ -46,5 +46,9 @@ if (!editMode && !previewMode) {
 }
 
 // In edit mode the admin injects its own overrides + edit affordances; expose
-// a flag it can check.
-if (editMode) window.__kpsEditMode = true;
+// a flag + a hook so the admin can rebuild the showcase carousel after editing
+// the gallery inside the preview iframe.
+if (editMode) {
+  window.__kpsEditMode = true;
+  window.__kpsInitShowcase = initShowcase;
+}

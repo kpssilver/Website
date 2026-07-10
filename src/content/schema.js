@@ -47,10 +47,7 @@ export const contentGroups = [
         default:
           'Each piece photographed in the setting it was made for, the pooja room, the table, the threshold. Swipe through, then find its kind in the collection below.',
       },
-      { key: 'showcase.img1', label: 'Slide 1 image (Pooja Thali)', type: 'image', default: '' },
-      { key: 'showcase.img2', label: 'Slide 2 image (Standing Deepam)', type: 'image', default: '' },
-      { key: 'showcase.img3', label: 'Slide 3 image (Fruit Bowl)', type: 'image', default: '' },
-      { key: 'showcase.img4', label: 'Slide 4 image (Silver Pots)', type: 'image', default: '' },
+      { key: 'showcase.items', label: 'Showcase gallery', type: 'gallery', default: '' },
     ],
   },
   {

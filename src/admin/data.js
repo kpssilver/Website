@@ -76,6 +76,19 @@ export async function fetchRecentEvents(limit = 60) {
   return data;
 }
 
+// All shop/storefront engagement events (product views, category views,
+// searches and enquiries), tagged with section = 'shop' by the storefront.
+export async function fetchShopEvents(limit = 2000) {
+  const { data, error } = await supabase
+    .from('page_events')
+    .select('event_type, event_label, created_at, session_key')
+    .eq('section', 'shop')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
 const SESSION_LIST_COLUMNS =
   'session_key, started_at, last_seen_at, total_time_seconds, city, region, country, country_code, device_type, browser, os, location_granted, location_source';
 

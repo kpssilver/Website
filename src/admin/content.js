@@ -18,8 +18,10 @@ import {
   isHtmlField,
   isMultilineField,
 } from '../content/schema.js';
+import { defaultShowcase, showcaseSlidesHtml, parseShowcaseItems } from '../data/showcase.js';
 
 const IMAGE_BUCKET = 'site-images';
+const STORAGE_MARKER = '/storage/v1/object/public/';
 const PREVIEW_KEY = 'kps_preview_overrides';
 const DRAFT_KEY = 'kps_content_draft';
 
@@ -45,6 +47,25 @@ async function fetchOverrides() {
   const { data, error } = await supabase.from('site_content').select('key, value');
   if (error) throw error;
   return new Map((data || []).map((r) => [r.key, r.value]));
+}
+
+async function uploadToBucket(file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `showcase-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+  if (error) throw error;
+  return supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+// Copy a bundled/built-in image URL into storage so it persists across deploys.
+async function uploadUrlToBucket(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const name = (url.split('/').pop() || 'image.webp').split('?')[0];
+  const file = new File([blob], name, { type: blob.type || 'image/webp' });
+  return uploadToBucket(file);
 }
 
 function readDraft() {
@@ -80,6 +101,20 @@ function fieldMarkup(f, working) {
           <span class="cm-status" aria-live="polite"></span>
         </div>
       </div>
+    </div>`;
+  }
+
+  if (f.type === 'gallery') {
+    return `
+    <div class="cm-field cm-field--gallery" data-field="${f.key}" data-type="gallery">
+      <label>${esc(f.label)}</label>
+      <p class="cm-hint">Add, remove, reorder or re-caption the homepage “In Focus” carousel slides.</p>
+      <div class="cm-gallery" data-gallery></div>
+      <div class="cm-gallery-actions">
+        <label class="cm-upload-btn"><input type="file" accept="image/*" multiple class="cm-gallery-file" hidden /> Add image(s)</label>
+        <button type="button" class="cm-reset" data-gallery-reset>Reset to built-in</button>
+      </div>
+      <span class="cm-status" data-gallery-status aria-live="polite"></span>
     </div>`;
   }
 
@@ -154,6 +189,12 @@ export async function renderContent(root, session) {
   const draft = readDraft();
   const working = draft ? new Map(draft) : new Map(saved);
   const origImg = {}; // key -> built-in image src (captured from the iframe)
+  // Working copy of the showcase gallery (from override, else built-in defaults).
+  let galleryItems = (parseShowcaseItems(working.get('showcase.items')) || defaultShowcase).map((x) => ({
+    img: x.img,
+    title: x.title || '',
+    tag: x.tag || '',
+  }));
 
   root.innerHTML = viewMarkup(working);
 
@@ -187,6 +228,17 @@ export async function renderContent(root, session) {
     if (!doc) return;
     const f = fieldByKey(key);
     if (!f) return;
+
+    if (f.type === 'gallery') {
+      const items = parseShowcaseItems(working.get(key)) || defaultShowcase;
+      const track = doc.querySelector('.showcase-track');
+      if (track) {
+        track.innerHTML = showcaseSlidesHtml(items);
+        const w = doc.defaultView;
+        if (w && typeof w.__kpsInitShowcase === 'function') w.__kpsInitShowcase();
+      }
+      return;
+    }
 
     if (f.type === 'image') {
       const val = working.get(key) || origImg[key] || '';
@@ -242,10 +294,111 @@ export async function renderContent(root, session) {
     if (input && input.focus) input.focus();
   };
 
+  // --- Showcase gallery editor ----------------------------------------------
+  const wireGallery = (fieldEl) => {
+    const wrap = fieldEl.querySelector('[data-gallery]');
+    const fileInput = fieldEl.querySelector('.cm-gallery-file');
+    const status = fieldEl.querySelector('[data-gallery-status]');
+    const resetBtn = fieldEl.querySelector('[data-gallery-reset]');
+
+    const commit = () => setWorking('showcase.items', JSON.stringify(galleryItems));
+
+    const renderRows = () => {
+      wrap.innerHTML = galleryItems.length
+        ? galleryItems
+            .map(
+              (it, i) => `
+        <div class="cm-gitem" data-i="${i}">
+          <img src="${esc(it.img)}" alt="" />
+          <div class="cm-gitem-fields">
+            <input class="cm-gtitle" type="text" placeholder="Title (e.g. Standing Deepam)" value="${esc(it.title)}" />
+            <input class="cm-gtag" type="text" placeholder="Tag (e.g. Lamps & Diyas)" value="${esc(it.tag)}" />
+          </div>
+          <div class="cm-gitem-btns">
+            <button type="button" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+            <button type="button" data-down="${i}" ${i === galleryItems.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+            <button type="button" data-rm="${i}" aria-label="Remove">✕</button>
+          </div>
+        </div>`,
+            )
+            .join('')
+        : '<p class="cm-hint">No slides yet — add at least one image.</p>';
+
+      wrap.querySelectorAll('.cm-gtitle').forEach((inp) =>
+        inp.addEventListener('input', () => {
+          galleryItems[Number(inp.closest('.cm-gitem').dataset.i)].title = inp.value;
+          commit();
+        }),
+      );
+      wrap.querySelectorAll('.cm-gtag').forEach((inp) =>
+        inp.addEventListener('input', () => {
+          galleryItems[Number(inp.closest('.cm-gitem').dataset.i)].tag = inp.value;
+          commit();
+        }),
+      );
+      wrap.querySelectorAll('[data-rm]').forEach((b) =>
+        b.addEventListener('click', () => {
+          galleryItems.splice(Number(b.dataset.rm), 1);
+          commit();
+          renderRows();
+        }),
+      );
+      wrap.querySelectorAll('[data-up]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const i = Number(b.dataset.up);
+          [galleryItems[i - 1], galleryItems[i]] = [galleryItems[i], galleryItems[i - 1]];
+          commit();
+          renderRows();
+        }),
+      );
+      wrap.querySelectorAll('[data-down]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const i = Number(b.dataset.down);
+          [galleryItems[i + 1], galleryItems[i]] = [galleryItems[i], galleryItems[i + 1]];
+          commit();
+          renderRows();
+        }),
+      );
+    };
+    renderRows();
+
+    fileInput.addEventListener('change', async () => {
+      const files = [...fileInput.files];
+      if (!files.length) return;
+      status.textContent = `Uploading ${files.length} image(s)…`;
+      try {
+        for (const file of files) {
+          const url = await uploadToBucket(file);
+          galleryItems.push({ img: url, title: '', tag: '' });
+        }
+        commit();
+        renderRows();
+        status.textContent = 'Uploaded ✓';
+      } catch (err) {
+        status.textContent = `Upload failed: ${err.message}`;
+      }
+      fileInput.value = '';
+    });
+
+    resetBtn.addEventListener('click', () => {
+      galleryItems = defaultShowcase.map((x) => ({ img: x.img, title: x.title || '', tag: x.tag || '' }));
+      working.delete('showcase.items');
+      persistDraft();
+      applyKeyToFrame('showcase.items');
+      markStatus('Unsaved changes', 'is-dirty');
+      renderRows();
+    });
+  };
+
   // --- Wire the side editor fields ------------------------------------------
   root.querySelectorAll('.cm-field').forEach((fieldEl) => {
     const key = fieldEl.dataset.field;
     const type = fieldEl.dataset.type;
+
+    if (type === 'gallery') {
+      wireGallery(fieldEl);
+      return;
+    }
 
     if (type === 'image') {
       const fileInput = fieldEl.querySelector('.cm-file');
@@ -446,6 +599,30 @@ export async function renderContent(root, session) {
 
     const now = new Date().toISOString();
     const uid = session?.user?.id || null;
+
+    // Normalise the showcase gallery: built-in/bundled image URLs aren't stable
+    // across deploys, so copy any non-storage image into the bucket first.
+    if (working.has('showcase.items')) {
+      try {
+        const items = JSON.parse(working.get('showcase.items'));
+        let changed = false;
+        for (const it of items) {
+          if (it.img && !it.img.includes(STORAGE_MARKER)) {
+            it.img = await uploadUrlToBucket(it.img);
+            changed = true;
+          }
+        }
+        if (changed) {
+          working.set('showcase.items', JSON.stringify(items));
+          galleryItems = items;
+        }
+      } catch (err) {
+        console.error('[KPS] gallery normalise failed:', err);
+        markStatus(`Save failed: could not process gallery images (${err.message})`, 'is-error');
+        btn.disabled = false;
+        return;
+      }
+    }
 
     // Safe diff: upsert current overrides; delete only overrides that were
     // saved before but the admin has since removed. Never mass-delete defaults.
