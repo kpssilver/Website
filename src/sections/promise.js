@@ -17,7 +17,7 @@ export function Promise() {
 <section class="promise" id="promise" data-theme-trigger="silver">
   <div class="wrap">
     <div>
-      <p class="eyebrow rv">The KPS Promise</p>
+      <p class="eyebrow rv" data-ck="promise.eyebrow">${cd('promise.eyebrow')}</p>
       <h2 data-split data-ck="promise.title">${cd('promise.title')}</h2>
     </div>
     <div class="promise-grid">${items}

@@ -11,7 +11,14 @@ import { renderPage } from './sections/index.js';
 import { initInteractions } from './interactions/animations.js';
 import { initContact } from './interactions/contact.js';
 import { initAnalytics } from './analytics/tracker.js';
-import { applyContent } from './content/apply.js';
+import { applyContent, applyContentMap } from './content/apply.js';
+
+// Two special modes used by the admin Content Manager (never real visitors):
+//   ?kpsedit=1     → live-edit preview inside the admin (admin drives content)
+//   ?kpspreview=1  → full-tab preview of unsaved edits (read from localStorage)
+const params = new URLSearchParams(window.location.search);
+const editMode = params.has('kpsedit');
+const previewMode = params.has('kpspreview');
 
 const app = document.getElementById('app');
 app.innerHTML = renderPage();
@@ -20,10 +27,24 @@ app.innerHTML = renderPage();
 initContact();
 initInteractions();
 
-// Apply any admin-edited content (titles, body text, images) over the
-// built-in defaults. Runs async; the page shows defaults until it resolves.
-applyContent();
+if (previewMode) {
+  // Show the admin's unsaved edits, passed via localStorage.
+  try {
+    const raw = localStorage.getItem('kps_preview_overrides');
+    if (raw) applyContentMap(JSON.parse(raw));
+  } catch {
+    /* ignore malformed preview payload */
+  }
+} else if (!editMode) {
+  // Normal visit: apply saved content overrides from Supabase.
+  applyContent();
+}
 
-// Visitor analytics: location (with consent), time-on-section and interactions.
-// Degrades silently if Supabase env vars aren't set.
-initAnalytics();
+// Analytics only for real visitors — never for the admin's own previews.
+if (!editMode && !previewMode) {
+  initAnalytics();
+}
+
+// In edit mode the admin injects its own overrides + edit affordances; expose
+// a flag it can check.
+if (editMode) window.__kpsEditMode = true;

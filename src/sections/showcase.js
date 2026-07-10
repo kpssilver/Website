@@ -39,7 +39,7 @@ export function Showcase() {
   return `
 <section id="showcase" data-theme-trigger="hero" aria-roledescription="carousel" aria-label="Silver pieces in focus">
   <div class="wrap showcase-head">
-    <p class="eyebrow rv">In Focus</p>
+    <p class="eyebrow rv" data-ck="showcase.eyebrow">${cd('showcase.eyebrow')}</p>
     <h2 data-split data-ck="showcase.title">${cd('showcase.title')}</h2>
     <p class="lede rv" data-ck="showcase.lede">${cd('showcase.lede')}</p>
   </div>

@@ -1,32 +1,32 @@
 import { site } from '../config/site.js';
-import { cd } from '../content/schema.js';
+import { cd, nl2br } from '../content/schema.js';
 
 // "Visit Us" — address, hours, contact and the WhatsApp CTA.
 // The Google Maps directions link and WhatsApp deep link both come from
 // src/config/site.js, so updating the number/route is a one-line change.
 export function Visit() {
-  const { contact, address, hours } = site;
+  const { contact } = site;
 
   return `
 <section id="visit" data-theme-trigger="dusk">
   <div class="wrap visit-grid">
     <div>
-      <p class="eyebrow rv">Visit Us</p>
+      <p class="eyebrow rv" data-ck="visit.eyebrow">${cd('visit.eyebrow')}</p>
       <h2 data-split data-ck="visit.title">${cd('visit.title')}</h2>
       <p class="lede rv" data-ck="visit.lede">${cd('visit.lede')}</p>
 
       <div class="visit-block rv">
         <h3>Address</h3>
-        <p>${address.lines.join('<br>')}</p>
+        <p data-ck="visit.address">${nl2br(cd('visit.address'))}</p>
       </div>
       <div class="visit-block rv">
         <h3>Hours</h3>
-        <p>${hours.lines.join('<br>')}</p>
+        <p data-ck="visit.hours">${nl2br(cd('visit.hours'))}</p>
       </div>
       <div class="visit-block rv">
         <h3>Contact</h3>
-        <p><button type="button" class="linklike" data-contact>Call or WhatsApp · ${contact.phoneDisplay}</button><br>
-        <a href="${contact.mapsDirectionsUrl}" target="_blank" rel="noopener">Get directions on Google Maps →</a></p>
+        <p><button type="button" class="linklike" data-contact data-ck="visit.contact_label">${cd('visit.contact_label')}</button><br>
+        <a href="${contact.mapsDirectionsUrl}" target="_blank" rel="noopener" data-ck="visit.directions_label" data-ck-href="links.maps_url">${cd('visit.directions_label')}</a></p>
       </div>
     </div>
 

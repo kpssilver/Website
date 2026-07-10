@@ -19,7 +19,7 @@ export function Heritage() {
       <div class="heritage-year rosegold metal-sheen" id="bigYear" data-text="1996">1996<small>Nagarthpet · Bengaluru</small></div>
     </div>
     <div class="heritage-copy">
-      <p class="eyebrow rv">The Heritage</p>
+      <p class="eyebrow rv" data-ck="heritage.eyebrow">${cd('heritage.eyebrow')}</p>
       <h2 data-split data-ck="heritage.title">${cd('heritage.title')}</h2>
       <p class="rv" data-ck="heritage.body1">${cd('heritage.body1')}</p>
       <p class="rv" data-ck="heritage.body2">${cd('heritage.body2')}</p>

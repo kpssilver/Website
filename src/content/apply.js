@@ -1,34 +1,46 @@
 // =============================================================================
 // CONTENT APPLY
-// On the public site, fetch any admin-saved content overrides and apply them
-// to elements tagged with [data-ck] (text/html) or [data-ck-img] (image src).
-// Elements without a saved override simply keep their built-in default, so the
-// page renders correctly even before this async fetch resolves.
+// Applies admin-saved content overrides to the page. Elements are tagged with:
+//   • data-ck       → text / HTML / multiline copy
+//   • data-ck-img   → image src
+//   • data-ck-href  → link URL (href)
+// Elements without a saved override keep their built-in default, so the page
+// renders correctly even before the async fetch resolves.
 // =============================================================================
 import { supabase, isSupabaseConfigured } from '../config/supabase.js';
-import { isHtmlField } from './schema.js';
+import { isHtmlField, isMultilineField, nl2br } from './schema.js';
 
-export async function applyContent() {
-  if (!isSupabaseConfigured) return;
-
-  const { data, error } = await supabase.from('site_content').select('key, value');
-  if (error || !data) return;
-
-  const map = new Map(data.map((r) => [r.key, r.value]));
+// Apply a key→value map of overrides to the current document.
+export function applyContentMap(map) {
+  const get = (k) => (map instanceof Map ? map.get(k) : map[k]);
 
   document.querySelectorAll('[data-ck]').forEach((el) => {
     const key = el.dataset.ck;
-    const val = map.get(key);
+    const val = get(key);
     if (val == null || val === '') return;
-    if (isHtmlField(key)) el.innerHTML = val;
+    if (isMultilineField(key)) el.innerHTML = nl2br(val);
+    else if (isHtmlField(key)) el.innerHTML = val;
     else el.textContent = val;
   });
 
   document.querySelectorAll('[data-ck-img]').forEach((el) => {
-    const val = map.get(el.dataset.ckImg);
+    const val = get(el.dataset.ckImg);
     if (val) {
       el.src = val;
-      el.srcset = '';
+      el.removeAttribute('srcset');
     }
   });
+
+  document.querySelectorAll('[data-ck-href]').forEach((el) => {
+    const val = get(el.dataset.ckHref);
+    if (val) el.setAttribute('href', val);
+  });
+}
+
+// Fetch saved overrides from Supabase and apply them (public landing page).
+export async function applyContent() {
+  if (!isSupabaseConfigured) return;
+  const { data, error } = await supabase.from('site_content').select('key, value');
+  if (error || !data) return;
+  applyContentMap(new Map(data.map((r) => [r.key, r.value])));
 }

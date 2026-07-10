@@ -305,75 +305,144 @@
 .reach-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--a-rose), var(--a-rose-hi)); }
 .reach-pct { font-variant-numeric: tabular-nums; color: var(--a-silver-hi); font-size: 0.8rem; }
 
-/* ---- Content Manager ------------------------------------------------------ */
+/* ---- Content Manager (WYSIWYG) -------------------------------------------- */
 .cm-loading { padding: 2rem; color: var(--a-text-dim); }
-.cm-toolbar { justify-content: space-between; align-items: center; }
-.cm-lede { margin: 0; font-size: 0.85rem; color: var(--a-text-dim); max-width: 40rem; }
-.cm-toolbar-actions { display: flex; align-items: center; gap: 0.7rem; }
-.cm-save-status { font-size: 0.78rem; color: var(--a-rose-hi); }
 
-.cm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.1rem; align-items: start; }
-.cm-group { display: flex; flex-direction: column; gap: 1rem; }
+.cm {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 1.1rem;
+  align-items: start;
+  height: calc(100vh - 150px);
+  min-height: 560px;
+}
 
-.cm-field { display: flex; flex-direction: column; gap: 0.4rem; }
-.cm-field > label { font-size: 0.78rem; letter-spacing: 0.02em; color: var(--a-text-dim); }
-.cm-hint { color: var(--a-rose); font-size: 0.72rem; }
+/* Left editor column */
+.cm-editor {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.cm-editor-head h2 { font-family: var(--fd); font-weight: 400; font-size: 1.25rem; margin: 0 0 0.3rem; }
+.cm-lede { margin: 0; font-size: 0.82rem; color: var(--a-text-dim); line-height: 1.5; }
+.cm-fields { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.cm-group {
+  background: var(--a-panel);
+  border: 1px solid var(--a-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.cm-group > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.75rem 1rem;
+  font-family: var(--fd);
+  font-size: 0.98rem;
+  color: var(--a-silver-hi);
+  user-select: none;
+}
+.cm-group > summary::-webkit-details-marker { display: none; }
+.cm-group > summary::before { content: '▸'; color: var(--a-rose); margin-right: 0.5rem; font-size: 0.8rem; }
+.cm-group[open] > summary::before { content: '▾'; }
+.cm-group-body { padding: 0.2rem 1rem 1rem; display: flex; flex-direction: column; gap: 1rem; }
+
+.cm-field { display: flex; flex-direction: column; gap: 0.35rem; border-radius: 10px; padding: 0.5rem; margin: -0.5rem; transition: background 0.25s ease, box-shadow 0.25s ease; }
+.cm-field.is-focused { background: rgba(233, 188, 169, 0.1); box-shadow: 0 0 0 1px var(--a-border-hi); }
+.cm-field > label { font-size: 0.76rem; letter-spacing: 0.02em; color: var(--a-text-dim); }
+.cm-hint { color: var(--a-rose); font-size: 0.7rem; }
 .cm-field input[type="text"], .cm-field textarea {
   width: 100%;
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid var(--a-border);
   color: var(--a-silver-hi);
   font-family: var(--fb);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   line-height: 1.5;
   resize: vertical;
 }
 .cm-field input[type="text"]:focus, .cm-field textarea:focus { outline: none; border-color: var(--a-rose); }
-.cm-field-actions { display: flex; justify-content: flex-end; }
 .cm-reset {
+  align-self: flex-end;
   cursor: pointer;
   background: transparent;
   border: none;
   color: var(--a-text-dim);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   text-decoration: underline;
-  padding: 0.1rem 0;
+  padding: 0;
 }
 .cm-reset:hover:not(:disabled) { color: var(--a-rose-hi); }
 .cm-reset:disabled { opacity: 0.4; cursor: default; }
 
-.cm-img-row { display: flex; gap: 1rem; align-items: flex-start; }
+.cm-img-row { display: flex; gap: 0.9rem; align-items: flex-start; }
 .cm-img-preview {
-  width: 96px;
-  height: 96px;
+  width: 84px;
+  height: 84px;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--a-border);
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.3) center/40% no-repeat;
   flex: 0 0 auto;
 }
-.cm-img-preview--empty {
-  display: grid;
-  place-items: center;
-  text-align: center;
-  font-size: 0.68rem;
-  color: var(--a-text-dim);
-  padding: 0.4rem;
-}
-.cm-img-actions { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+.cm-img-actions { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-start; }
+.cm-img-tag { font-size: 0.7rem; color: var(--a-text-dim); }
 .cm-upload-btn {
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--a-ink);
   background: linear-gradient(120deg, var(--a-rose-hi), var(--a-rose));
-  padding: 0.45rem 0.9rem;
-  border-radius: 9px;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
 }
 .cm-upload-btn:hover { filter: brightness(1.06); }
-.cm-status { font-size: 0.74rem; color: var(--a-rose-hi); }
+.cm-status { font-size: 0.72rem; color: var(--a-rose-hi); }
+
+/* Right preview column */
+.cm-preview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.cm-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.cm-view-toggle { display: flex; gap: 0.35rem; margin-right: auto; }
+.cm-save-status { font-size: 0.78rem; color: var(--a-text-dim); }
+.cm-save-status.is-dirty { color: var(--a-gold); }
+.cm-save-status.is-saved { color: #4ade80; }
+.cm-save-status.is-error { color: #ffb4a8; }
+
+.cm-frame-holder {
+  flex: 1;
+  min-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--a-border);
+  background: #170307;
+  display: flex;
+  justify-content: center;
+}
+.cm-frame-holder.is-mobile { padding: 0.8rem 0; background: rgba(0, 0, 0, 0.35); }
+.cm-frame-holder.is-mobile #cmFrame { max-width: 390px; border-radius: 20px; border: 1px solid var(--a-border); }
+#cmFrame { width: 100%; height: 100%; border: 0; background: #170307; }
+
+@media (max-width: 1000px) {
+  .cm { grid-template-columns: 1fr; height: auto; }
+  .cm-editor { max-height: 50vh; }
+  .cm-frame-holder { height: 70vh; }
+}
 
 /* ---- Drawer (drill-downs + visitor detail) -------------------------------- */
 .drawer { position: fixed; inset: 0; z-index: 1500; }

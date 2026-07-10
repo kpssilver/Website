@@ -1,5 +1,6 @@
 import { site } from '../config/site.js';
 import { Logo } from '../components/logo.js';
+import { cd } from '../content/schema.js';
 
 // Fixed top navigation. Links are in-page anchors for now; when the site
 // grows into a storefront these can point to routes (/collections, /cart …).
@@ -15,7 +16,7 @@ export function Nav() {
     <a href="#heritage">Since ${site.established}</a>
     <a href="#occasions">Occasions</a>
     <a href="#promise">Our Promise</a>
-    <a href="${site.contact.mapsDirectionsUrl}" target="_blank" rel="noopener" class="nav-cta">Visit the Store</a>
+    <a href="${site.contact.mapsDirectionsUrl}" target="_blank" rel="noopener" class="nav-cta" data-ck="nav.cta_label" data-ck-href="links.maps_url">${cd('nav.cta_label')}</a>
   </div>
 </nav>`;
 }

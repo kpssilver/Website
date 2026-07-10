@@ -21,7 +21,7 @@ export function Collections() {
   <div class="wrap">
     <div class="coll-head">
       <div>
-        <p class="eyebrow rv">The Collections</p>
+        <p class="eyebrow rv" data-ck="collections.eyebrow">${cd('collections.eyebrow')}</p>
         <h2 data-split data-ck="collections.title">${cd('collections.title')}</h2>
       </div>
       <p class="lede rv" style="margin-top:0" data-ck="collections.lede">${cd('collections.lede')}</p>

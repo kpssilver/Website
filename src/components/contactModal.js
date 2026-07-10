@@ -1,4 +1,5 @@
 import { site } from '../config/site.js';
+import { cd } from '../content/schema.js';
 
 // A small chooser shown when a customer taps a "Call or WhatsApp" action:
 // it asks how they'd like to reach the store, then either opens the phone
@@ -21,14 +22,14 @@ export function ContactModal() {
     <h3 id="contactModalTitle">How would you like to reach us?</h3>
     <p class="contact-note">Call the store directly, or send us a WhatsApp, and we'll reply with photos and prices during store hours.</p>
     <div class="contact-choices">
-      <a class="contact-choice" data-contact-choice href="${contact.phoneHref}">
+      <a class="contact-choice" data-contact-choice href="${contact.phoneHref}" data-ck-href="links.phone_href">
         <span class="contact-choice-ic">${phoneIcon}</span>
         <span class="contact-choice-txt">
           <span class="contact-choice-t">Call the store</span>
-          <span class="contact-choice-s">${contact.phoneDisplay}</span>
+          <span class="contact-choice-s" data-ck="links.phone_display">${cd('links.phone_display')}</span>
         </span>
       </a>
-      <a class="contact-choice contact-choice--wa" data-contact-choice href="${contact.whatsappUrl}" target="_blank" rel="noopener">
+      <a class="contact-choice contact-choice--wa" data-contact-choice href="${contact.whatsappUrl}" target="_blank" rel="noopener" data-ck-href="links.whatsapp_url">
         <span class="contact-choice-ic">${waIcon}</span>
         <span class="contact-choice-txt">
           <span class="contact-choice-t">Message on WhatsApp</span>
