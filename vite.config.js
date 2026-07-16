@@ -61,16 +61,18 @@ function devApi(env) {
   };
 }
 
-// Dev-only: let the clean URL "/landing" serve landing.html (Vercel does this
-// automatically in production via its clean-URL handling).
-function landingRoute() {
+// Dev-only: map clean URLs to their .html entry so `npm run dev` matches the
+// production routing (Vercel handles this via `cleanUrls` in vercel.json).
+const CLEAN_ROUTES = ['landing', 'shop', 'admin', 'staff'];
+function cleanUrlRoutes() {
   return {
-    name: 'kps-landing-route',
+    name: 'kps-clean-url-routes',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const [path, query] = (req.url || '').split('?');
-        if (path === '/landing' || path === '/landing/') {
-          req.url = '/landing.html' + (query ? `?${query}` : '');
+        const name = path.replace(/^\/|\/$/g, '');
+        if (CLEAN_ROUTES.includes(name)) {
+          req.url = `/${name}.html` + (query ? `?${query}` : '');
         }
         next();
       });
@@ -88,7 +90,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: '.',
     publicDir: 'public',
-    plugins: [devApi(env), landingRoute()],
+    plugins: [devApi(env), cleanUrlRoutes()],
     server: {
       port: 5173,
       open: true,
@@ -102,6 +104,7 @@ export default defineConfig(({ mode }) => {
           main: resolve(__dirname, 'index.html'),
           shop: resolve(__dirname, 'shop.html'),
           admin: resolve(__dirname, 'admin.html'),
+          staff: resolve(__dirname, 'staff.html'),
           landing: resolve(__dirname, 'landing.html'),
         },
       },

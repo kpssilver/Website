@@ -4,20 +4,26 @@
 // =============================================================================
 import { signIn } from './auth.js';
 
-export function renderLogin(root, onSuccess, initialError = '') {
+export function renderLogin(root, onSuccess, initialError = '', opts = {}) {
+  const {
+    brandSub = 'Silver · Admin',
+    lede = 'Sign in to manage KPS Silver.',
+    idLabel = 'Email or mobile',
+    idPlaceholder = 'admin@123 or 9876543210',
+  } = opts;
   root.innerHTML = `
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-brand">
       <span class="login-mark">KPS</span>
-      <span class="login-brand-sub">Silver · Admin</span>
+      <span class="login-brand-sub">${brandSub}</span>
     </div>
     <h1>Welcome back</h1>
-    <p class="login-lede">Sign in to manage KPS Silver.</p>
+    <p class="login-lede">${lede}</p>
     <form id="loginForm" novalidate>
       <label class="field">
-        <span>Email or mobile</span>
-        <input type="text" id="email" autocomplete="username" placeholder="admin@123 or 9876543210" required />
+        <span>${idLabel}</span>
+        <input type="text" id="email" autocomplete="username" placeholder="${idPlaceholder}" required />
       </label>
       <label class="field">
         <span>Password</span>

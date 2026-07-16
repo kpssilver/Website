@@ -1,24 +1,23 @@
 // =============================================================================
-// ADMIN APP ENTRY
-// Shows the login screen until authenticated, then routes by role:
-//   • admin  -> full dashboard
-//   • staff  -> products-only dashboard (forced password change on first login)
-//   • other  -> signed out with a message
+// STAFF APP ENTRY
+// The staff portal is separate from the admin dashboard. It only admits staff
+// accounts (products-only workspace) and forces a password change on first
+// login. Admins are redirected to the admin portal.
 // =============================================================================
 import '../styles/admin.css';
 import { isSupabaseConfigured } from '../config/supabase.js';
-import { getSession, getProfile, signOut } from './auth.js';
-import { renderLogin } from './login.js';
-import { renderApp } from './app.js';
-import { renderChangePassword } from './changePassword.js';
+import { getSession, getProfile, signOut } from '../admin/auth.js';
+import { renderLogin } from '../admin/login.js';
+import { renderApp } from '../admin/app.js';
+import { renderChangePassword } from '../admin/changePassword.js';
 
-const root = document.getElementById('admin-root');
+const root = document.getElementById('staff-root');
 
 const LOGIN_OPTS = {
-  brandSub: 'Silver · Admin',
-  lede: 'Sign in to manage KPS Silver.',
-  idLabel: 'Email',
-  idPlaceholder: 'admin@123',
+  brandSub: 'Silver · Staff',
+  lede: 'Sign in with your mobile number.',
+  idLabel: 'Mobile number',
+  idPlaceholder: '9876543210',
 };
 
 function showLogin(errorMsg = '') {
@@ -40,13 +39,19 @@ async function route(session) {
   }
   if (profile.role === 'none') {
     await signOut();
-    return showLogin('This account is not authorised to access the dashboard.');
+    return showLogin('This account is not authorised to access the staff portal.');
   }
 
-  // This is the admin portal — staff belong on the staff portal.
-  if (profile.role === 'staff') {
+  // This is the staff portal — admins belong on the admin portal.
+  if (profile.role === 'admin') {
     await signOut();
-    return showLogin('Staff sign in at the staff portal: /staff');
+    return showLogin('Administrators sign in at the admin portal: /admin');
+  }
+
+  // Staff must set their own password on first login.
+  if (profile.mustChange) {
+    renderChangePassword(root, profile.name, () => route(session), () => showLogin());
+    return;
   }
 
   renderApp(root, session, profile, () => showLogin());
