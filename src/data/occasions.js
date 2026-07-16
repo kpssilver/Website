@@ -13,11 +13,11 @@ export const occasions = [
     copy: 'Diyas for Deepavali, mukuts and singhasans for Navaratri and Varamahalakshmi, and fresh silver to grace the pooja room each new season.',
   },
   {
-    title: 'Naming &amp; First Birthdays',
+    title: 'Naming & First Birthdays',
     copy: "A child's first silver plate, cup and glass, the gift that long outlasts every toy it arrived beside.",
   },
   {
-    title: 'Corporate &amp; Return Gifts',
+    title: 'Corporate & Return Gifts',
     copy: 'Clocks, décor elephants and trays in the quantities you need, each carrying the same weight and finish across the whole order.',
   },
 ];

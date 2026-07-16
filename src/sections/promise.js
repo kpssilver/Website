@@ -4,13 +4,15 @@ import { cd } from '../content/schema.js';
 // "The KPS Promise" — the section where the backdrop flips to silver.
 export function Promise() {
   const items = promises
-    .map(
-      (p) => `
+    .map((_p, i) => {
+      const kT = `promise.item${i + 1}_title`;
+      const kC = `promise.item${i + 1}_copy`;
+      return `
       <div class="promise-item">
-        <h3>${p.title}</h3>
-        <p>${p.copy}</p>
-      </div>`,
-    )
+        <h3 data-ck="${kT}">${cd(kT)}</h3>
+        <p data-ck="${kC}">${cd(kC)}</p>
+      </div>`;
+    })
     .join('');
 
   return `

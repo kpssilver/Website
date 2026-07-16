@@ -1,0 +1,10 @@
+# KPS Silver — robots.txt
+# Update the Sitemap domain below if the live domain differs from site.url.
+
+User-agent: *
+Allow: /
+
+# Internal super-admin dashboard — keep out of search results.
+Disallow: /admin.html
+
+Sitemap: https://www.kpssilver.com/sitemap.xml

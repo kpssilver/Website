@@ -19,12 +19,14 @@ import {
 import {
   fetchPricingSettings,
   computePrice,
-  priceLabel,
+  shopPriceLabel,
+  approxSentence,
   formatMoney,
   purityLabel,
   DEFAULT_PRICING,
 } from '../data/pricing.js';
 import { initAnalytics, trackEvent } from '../analytics/tracker.js';
+import { startCheckout } from '../payments/razorpay.js';
 
 const root = document.getElementById('shop-root');
 let allProducts = [];
@@ -95,7 +97,7 @@ function cardMarkup(p) {
       <h3>${esc(p.title)}</h3>
       ${p.subtitle ? `<p class="shop-card-sub">${esc(p.subtitle)}</p>` : ''}
       <div class="shop-card-foot">
-        <span class="shop-price">${esc(priceLabel(p, pricing))}</span>
+        <span class="shop-price">${esc(shopPriceLabel(p, pricing))}</span>
         ${p.weight_grams ? `<span class="shop-weight">${esc(formatWeight(p))}</span>` : ''}
       </div>
     </div>
@@ -165,19 +167,12 @@ function priceBlock(p) {
       p.in_stock ? '' : '<span class="shop-tag shop-tag--out">Sold out</span>'
     }</div>`;
   }
-  const rows = r.lines
-    .map((l) => `<div class="shop-brk-row"><span>${esc(l.label)}</span><span>${esc(formatMoney(l.amount))}</span></div>`)
-    .join('');
   return `
   <div class="shop-detail-price">
     <span class="shop-price">${esc(formatMoney(r.total))}</span>
     ${p.in_stock ? '' : '<span class="shop-tag shop-tag--out">Sold out</span>'}
   </div>
-  <div class="shop-breakdown">
-    <div class="shop-brk-title">Price breakdown</div>
-    ${rows}
-    <div class="shop-brk-row shop-brk-total"><span>Total (incl. GST)</span><span>${esc(formatMoney(r.total))}</span></div>
-  </div>`;
+  ${r.mode === 'fixed' ? '' : `<p class="shop-approx-note">${esc(approxSentence())}</p>`}`;
 }
 
 function openDetail(id) {
@@ -187,6 +182,16 @@ function openDetail(id) {
   const host = root.querySelector('#shopModalHost');
   const images = Array.isArray(p.images) ? p.images : [];
   const mainImg = images[0] || '';
+
+  // Online payment is offered only for in-stock pieces with a concrete price —
+  // and only while the payments feature flag is on (see src/config/site.js).
+  const detailPrice = computePrice(p, pricing);
+  const payTotal = Number(detailPrice.total || 0);
+  const canBuy =
+    Boolean(site.features?.payments) &&
+    p.in_stock &&
+    (detailPrice.mode === 'fixed' || detailPrice.mode === 'calculated') &&
+    payTotal >= 1;
 
   const thumbs = images
     .map((u, i) => `<button class="shop-thumb${i === 0 ? ' is-active' : ''}" type="button" data-src="${esc(u)}"><img src="${esc(u)}" alt="" /></button>`)
@@ -222,9 +227,12 @@ function openDetail(id) {
           </div>
           <div class="shop-detail-foot">
             <div class="shop-detail-cta">
-              <a id="shopDetailWa" class="btn btn-solid" href="${productWhatsAppUrl(p, productLink(p))}" target="_blank" rel="noopener"><span class="fill"></span><span class="lbl">Enquire on WhatsApp</span></a>
+              ${canBuy ? `<button id="shopBuy" class="btn btn-solid" type="button"><span class="fill"></span><span class="lbl">Pay securely — ${esc(formatMoney(payTotal))}</span></button>` : ''}
+              <a id="shopDetailWa" class="btn ${canBuy ? 'btn-ghost' : 'btn-solid'}" href="${productWhatsAppUrl(p, productLink(p))}" target="_blank" rel="noopener"><span class="fill"></span><span class="lbl">Enquire on WhatsApp</span></a>
               <a class="btn btn-ghost" href="${site.contact.phoneHref}"><span class="fill"></span><span class="lbl">Call the store</span></a>
             </div>
+            ${canBuy ? '<p class="shop-pay-note">Online payment is an advance at today’s indicative price; the final amount is confirmed on weighing in store.</p>' : ''}
+            <p class="shop-pay-msg" id="shopPayMsg" role="status" hidden></p>
           </div>
         </div>
       </div>
@@ -241,6 +249,44 @@ function openDetail(id) {
     if (e.target.id === 'shopBackdrop') close();
   });
   host.querySelector('#shopDetailWa')?.addEventListener('click', () => trackEvent('product_enquiry', p.title, 'shop'));
+
+  // ---- Razorpay checkout --------------------------------------------------
+  const buyBtn = host.querySelector('#shopBuy');
+  const payMsg = host.querySelector('#shopPayMsg');
+  const setPayMsg = (text, kind = '') => {
+    if (!payMsg) return;
+    payMsg.hidden = !text;
+    payMsg.textContent = text || '';
+    payMsg.className = `shop-pay-msg${kind ? ` ${kind}` : ''}`;
+  };
+  if (buyBtn) {
+    buyBtn.addEventListener('click', async () => {
+      buyBtn.disabled = true;
+      setPayMsg('Opening secure checkout…');
+      trackEvent('checkout_start', p.title, 'shop');
+      await startCheckout({
+        amountPaise: Math.round(payTotal * 100),
+        receipt: `kps_${p.id}`.slice(0, 40),
+        description: p.title,
+        notes: { product: p.title, product_id: p.id },
+        prefill: {},
+        onSuccess: (r) => {
+          setPayMsg(`Payment successful ✓ Reference ${r.payment_id}. We’ll contact you to arrange delivery.`, 'is-ok');
+          trackEvent('payment_success', p.title, 'shop');
+          buyBtn.disabled = false;
+        },
+        onDismiss: () => {
+          setPayMsg('Checkout closed. You can pay anytime, or enquire on WhatsApp.');
+          buyBtn.disabled = false;
+        },
+        onError: (err) => {
+          setPayMsg(err?.message || 'Payment could not be completed. Please try again.', 'is-error');
+          buyBtn.disabled = false;
+        },
+      });
+    });
+  }
+
   document.addEventListener('keydown', function onEsc(e) {
     if (e.key === 'Escape') {
       close();

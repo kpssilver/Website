@@ -1,4 +1,3 @@
-import { site } from '../config/site.js';
 import { Logo } from '../components/logo.js';
 import { cd } from '../content/schema.js';
 
@@ -8,6 +7,7 @@ export function Footer() {
   <div class="foot">
     <div>
       <div class="foot-brand">${Logo('foot')}</div>
+      <p class="foot-motto" data-ck="hero.motto">${cd('hero.motto')}</p>
       <small data-ck="footer.tagline">${cd('footer.tagline')}</small>
     </div>
     <small data-ck="footer.copyright">${cd('footer.copyright')}</small>

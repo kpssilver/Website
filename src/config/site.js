@@ -12,8 +12,23 @@ const WHATSAPP_MESSAGE =
 
 export const site = {
   brand: 'KPS Silver',
+  // Brand motto — shown under the hero logo and in the footer.
+  motto: 'Where trust is tradition',
   tagline: '925 sterling to 999 fine silver · Nagarthpet, Bengaluru · Since 1996',
   established: 1996,
+
+  // Canonical production URL (no trailing slash). Used for the sitemap &
+  // robots.txt. UPDATE THIS if the live domain differs, then also update the
+  // same URL in public/sitemap.xml and public/robots.txt.
+  url: 'https://www.kpssilver.com',
+
+  // Feature flags.
+  features: {
+    // Online "Pay securely" checkout (Razorpay) on the shop. Off until the
+    // catalogue is ready and we're taking online orders — flip to `true` to
+    // re-enable the pay button (the checkout code stays wired, just hidden).
+    payments: false,
+  },
 
   contact: {
     // Displayed phone number (human friendly).
@@ -34,7 +49,11 @@ export const site = {
   },
 
   address: {
-    lines: ['KPS Silver, Nagarthpet Main Road,', 'Bengaluru 560002, Karnataka'],
+    lines: [
+      '905, Nagarathpet Main Rd, Medarpet, Kumbarpet',
+      'Ganigarpet, Nagarathpete',
+      'Bengaluru, Karnataka 560002',
+    ],
   },
 
   hours: {

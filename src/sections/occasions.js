@@ -4,13 +4,15 @@ import { cd } from '../content/schema.js';
 // "The Occasions" — a list of milestones KPS Silver serves.
 export function Occasions() {
   const rows = occasions
-    .map(
-      (o) => `
+    .map((_o, i) => {
+      const kT = `occasions.item${i + 1}_title`;
+      const kC = `occasions.item${i + 1}_copy`;
+      return `
       <div class="occ">
-        <h3>${o.title}</h3>
-        <p>${o.copy}</p>
-      </div>`,
-    )
+        <h3 data-ck="${kT}">${cd(kT)}</h3>
+        <p data-ck="${kC}">${cd(kC)}</p>
+      </div>`;
+    })
     .join('');
 
   return `

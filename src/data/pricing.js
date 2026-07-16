@@ -12,7 +12,14 @@
 // =============================================================================
 import { supabase, isSupabaseConfigured } from '../config/supabase.js';
 
-export const DEFAULT_PRICING = { silver_rate_925: 0, silver_rate_999: 0, gst_percent: 3 };
+export const DEFAULT_PRICING = {
+  silver_rate_925: 0,
+  silver_rate_999: 0,
+  gst_percent: 3,
+  silver_source: 'manual',
+  silver_rate_updated_at: null,
+  silver_market_timestamp: null,
+};
 
 export const PRICING_MODES = [
   { value: 'calculated', label: 'Auto-calculate from silver rate' },
@@ -37,9 +44,12 @@ export function formatMoney(n) {
   return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 }
 
-export function rateFor(product, settings) {
+// The live per-gram silver price used for EVERY calculation. Purity is now
+// descriptive only — pricing always uses 100% of the market silver price ×
+// weight, regardless of whether the piece is 925 or 999.
+export function rateFor(_product, settings) {
   const s = settings || DEFAULT_PRICING;
-  return product?.metal_purity === '999' ? Number(s.silver_rate_999 || 0) : Number(s.silver_rate_925 || 0);
+  return Number(s.silver_rate_999 || 0);
 }
 
 function makingLabel(p) {
@@ -107,6 +117,19 @@ export function priceLabel(product, settings) {
   const r = computePrice(product, settings);
   if (r.mode === 'on_request' || r.mode === 'unset') return 'Price on request';
   return formatMoney(r.total);
+}
+
+// Storefront price label — plain formatted price (no "approx" prefix).
+export function shopPriceLabel(product, settings) {
+  const r = computePrice(product, settings);
+  if (r.mode === 'on_request' || r.mode === 'unset') return 'Price on request';
+  return formatMoney(r.total);
+}
+
+// Note shown under the price on the product detail page for market-derived
+// prices. The amount is already displayed above, so it isn't repeated here.
+export function approxSentence() {
+  return 'Based on current market prices, this is an approximate price.';
 }
 
 export async function fetchPricingSettings() {

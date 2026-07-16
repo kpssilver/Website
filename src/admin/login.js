@@ -1,28 +1,29 @@
 // =============================================================================
-// ADMIN LOGIN SCREEN
+// ADMIN / STAFF LOGIN SCREEN
+// Accepts the admin's email OR a staff member's mobile number.
 // =============================================================================
 import { signIn } from './auth.js';
 
-export function renderLogin(root, onSuccess) {
+export function renderLogin(root, onSuccess, initialError = '') {
   root.innerHTML = `
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-brand">
       <span class="login-mark">KPS</span>
-      <span class="login-brand-sub">Silver · Super Admin</span>
+      <span class="login-brand-sub">Silver · Admin</span>
     </div>
     <h1>Welcome back</h1>
-    <p class="login-lede">Sign in to view visitor insights for KPS Silver.</p>
+    <p class="login-lede">Sign in to manage KPS Silver.</p>
     <form id="loginForm" novalidate>
       <label class="field">
-        <span>Email</span>
-        <input type="text" id="email" autocomplete="username" placeholder="admin@123" required />
+        <span>Email or mobile</span>
+        <input type="text" id="email" autocomplete="username" placeholder="admin@123 or 9876543210" required />
       </label>
       <label class="field">
         <span>Password</span>
         <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
       </label>
-      <p class="login-error" id="loginError" hidden></p>
+      <p class="login-error" id="loginError" ${initialError ? '' : 'hidden'}>${initialError}</p>
       <button type="submit" class="login-btn" id="loginBtn">Sign in</button>
     </form>
   </div>
@@ -38,9 +39,9 @@ export function renderLogin(root, onSuccess) {
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
-      const email = form.querySelector('#email').value.trim();
+      const identifier = form.querySelector('#email').value.trim();
       const password = form.querySelector('#password').value;
-      const session = await signIn(email, password);
+      const session = await signIn(identifier, password);
       onSuccess(session);
     } catch (err) {
       errEl.textContent = err?.message || 'Unable to sign in. Check your credentials.';

@@ -9,8 +9,20 @@
 // Add a field here + a matching hook in the template and it becomes editable.
 // =============================================================================
 import { site } from '../config/site.js';
+import { promises } from '../data/promise.js';
+import { occasions } from '../data/occasions.js';
+import { collections } from '../data/collections.js';
 
 const { contact } = site;
+
+// Build editable title/text fields for a repeatable list section (Promise,
+// Occasions, Collections) so every card's copy is editable from the CMS.
+// Defaults come from the data files, keeping a single source of truth.
+const listFields = (prefix, arr) =>
+  arr.flatMap((it, i) => [
+    { key: `${prefix}.item${i + 1}_title`, label: `Card ${i + 1} · Title`, type: 'text', default: it.title },
+    { key: `${prefix}.item${i + 1}_copy`, label: `Card ${i + 1} · Text`, type: 'textarea', default: it.copy },
+  ]);
 
 export const contentGroups = [
   {
@@ -22,7 +34,8 @@ export const contentGroups = [
   {
     group: 'Hero',
     fields: [
-      { key: 'hero.eyebrow', label: 'Eyebrow', type: 'text', default: `Nagarthpet · Bengaluru · Est. ${site.established}` },
+      { key: 'hero.motto', label: 'Motto (under logo & in footer)', type: 'text', default: site.motto },
+      { key: 'hero.eyebrow', label: 'Eyebrow', type: 'text', default: 'Nagarthpet · Bengaluru' },
       {
         key: 'hero.sub',
         label: 'Intro paragraph',
@@ -62,6 +75,7 @@ export const contentGroups = [
         default:
           "Every article is genuine silver, graded plainly from 925 sterling to 999 fine, weighed before you and priced on the day's rate. Walk in, hold it, feel its weight settle in your palm, the way silver has been chosen in Nagarthpet for generations.",
       },
+      ...listFields('collections', collections),
     ],
   },
   {
@@ -97,6 +111,7 @@ export const contentGroups = [
         type: 'textarea',
         default: 'Name the occasion and what you wish to spend, and we will bring out the pieces that honour both.',
       },
+      ...listFields('occasions', occasions),
     ],
   },
   {
@@ -104,6 +119,7 @@ export const contentGroups = [
     fields: [
       { key: 'promise.eyebrow', label: 'Eyebrow', type: 'text', default: 'The KPS Promise' },
       { key: 'promise.title', label: 'Heading', type: 'text', default: 'Bought the way silver has always been bought' },
+      ...listFields('promise', promises),
     ],
   },
   {
@@ -118,10 +134,23 @@ export const contentGroups = [
         default:
           'Hold it. Weigh it. Compare it under the light. Our store in Nagarthpet has worked that way since 1996. Come see why.',
       },
+      { key: 'visit.label_address', label: 'Address label', type: 'text', default: 'Address' },
       { key: 'visit.address', label: 'Address', type: 'textarea', multiline: true, default: site.address.lines.join('\n') },
+      { key: 'visit.label_hours', label: 'Hours label', type: 'text', default: 'Hours' },
       { key: 'visit.hours', label: 'Opening hours', type: 'textarea', multiline: true, default: site.hours.lines.join('\n') },
+      { key: 'visit.label_contact', label: 'Contact label', type: 'text', default: 'Contact' },
       { key: 'visit.contact_label', label: 'Contact button label', type: 'text', default: `Call or WhatsApp · ${contact.phoneDisplay}` },
       { key: 'visit.directions_label', label: 'Directions link label', type: 'text', default: 'Get directions on Google Maps →' },
+      { key: 'visit.talk_title', label: 'Card · Heading', type: 'text', default: 'Talk to the store' },
+      {
+        key: 'visit.talk_body',
+        label: 'Card · Body',
+        type: 'textarea',
+        default:
+          "Looking for a specific piece, a bulk gifting order, or today's silver rate? Call us or send a WhatsApp with the occasion and your budget, and we'll reply with photos and prices from the store.",
+      },
+      { key: 'visit.talk_cta', label: 'Card · Button label', type: 'text', default: 'Call or WhatsApp' },
+      { key: 'visit.talk_note', label: 'Card · Note', type: 'text', default: 'Replies during store hours · Kannada, Hindi, Tamil & English' },
     ],
   },
   {

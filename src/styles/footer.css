@@ -1,5 +1,6 @@
 /* ============ FOOTER ============ */
 footer{border-top:1px solid var(--line);padding:3rem clamp(1.25rem,5vw,4rem) 2.2rem}
 .foot{max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;gap:2rem;flex-wrap:wrap;align-items:center}
-.foot-brand{display:flex;align-items:center;font-family:var(--fd);letter-spacing:.14em;text-transform:uppercase;font-size:1.1rem;margin-bottom:.6rem}
+.foot-brand{display:flex;align-items:center;font-family:var(--fd);letter-spacing:.14em;text-transform:uppercase;font-size:1.1rem;margin-bottom:.4rem}
+.foot-motto{font-family:var(--fd);font-style:italic;font-size:.95rem;letter-spacing:.03em;color:var(--silver);margin:0 0 .5rem}
 .foot small{color:var(--silver-dim);font-size:.78rem;letter-spacing:.06em;font-weight:300}

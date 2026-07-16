@@ -69,28 +69,62 @@ async function uploadMedia(file) {
 }
 
 // ---- Master pricing control -------------------------------------------------
+// Silver rates are pulled live from metals.dev (MCX) on a schedule and are
+// read-only here. Only GST is editable; a manual "Refresh from market" button
+// triggers an out-of-schedule fetch (still bounded by the 3/day, 90/month cap).
+function fmtWhen(iso) {
+  if (!iso) return 'not yet';
+  const d = new Date(iso);
+  const m = Math.round((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hr ago`;
+  return d.toLocaleString('en-IN');
+}
+
 function masterMarkup(s) {
+  const sourceLabel =
+    s.silver_source === 'aib'
+      ? 'Live · All India Bullion (Bangalore)'
+      : s.silver_source === 'api'
+        ? 'Live · metals.dev (MCX, fallback)'
+        : 'Awaiting first live fetch';
+  const isLive = s.silver_source === 'aib' || s.silver_source === 'api';
   return `
   <div class="pm-master">
     <div class="pm-master-head">
       <div>
-        <h3>Master silver pricing</h3>
-        <p class="pm-hint">Set today's silver rate per gram. Every auto-calculated product uses this as its base.</p>
+        <h3>Master silver pricing <span class="pm-live-tag ${isLive ? '' : 'is-off'}">${sourceLabel}</span></h3>
+        <p class="pm-hint">The silver price updates automatically from the live Bangalore rate (All India Bullion, 999 with GST), every 5 minutes. Every auto-calculated product uses this × weight (100%) as its base, then GST is added on top — you only set GST.</p>
       </div>
       <span class="pm-save-msg" id="pmMasterMsg"></span>
     </div>
-    <form class="pm-master-grid" id="pmMasterForm">
-      <label class="pm-lbl">925 Sterling rate (₹/g) ${ic('The price of one gram of 925 sterling silver today. Products set to 925 purity multiply their weight by this rate.')}
-        <input name="silver_rate_925" type="number" step="0.01" min="0" value="${s.silver_rate_925 ?? 0}" />
-      </label>
-      <label class="pm-lbl">999 Fine rate (₹/g) ${ic('The price of one gram of 999 fine silver today. Products set to 999 purity multiply their weight by this rate.')}
-        <input name="silver_rate_999" type="number" step="0.01" min="0" value="${s.silver_rate_999 ?? 0}" />
-      </label>
-      <label class="pm-lbl">GST (%) ${ic('Goods & Services Tax added on top of the silver value + weightage + charges. Silver jewellery/articles is 3% in India.')}
-        <input name="gst_percent" type="number" step="0.01" min="0" value="${s.gst_percent ?? 3}" />
-      </label>
-      <button type="submit" class="dash-btn" id="pmMasterSave">Save rates</button>
-    </form>
+
+    <div class="pm-rate-tiles">
+      <div class="pm-rate-tile">
+        <span class="pm-rate-lbl">Silver price (per gram) ${ic('The live Bangalore 999-with-GST silver rate from All India Bullion, used purely as the silver price base. Every auto-calculated product uses this × weight (100%), regardless of the item’s stated purity, and GST is then added on top.')}</span>
+        <span class="pm-rate-val">₹${Number(s.silver_rate_999 || 0).toLocaleString('en-IN')}<small>/g</small></span>
+      </div>
+      <div class="pm-rate-tile pm-rate-meta">
+        <span class="pm-rate-lbl">Last updated</span>
+        <span class="pm-rate-when">${fmtWhen(s.silver_rate_updated_at)}</span>
+        ${s.silver_market_timestamp ? `<span class="pm-rate-note">Market time: ${new Date(s.silver_market_timestamp).toLocaleString('en-IN')}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="pm-master-controls">
+      <form class="pm-gst-form" id="pmMasterForm">
+        <label class="pm-lbl">GST (%) ${ic('Goods & Services Tax added on top of silver value + weightage + charges. Silver articles are 3% in India.')}
+          <input name="gst_percent" type="number" step="0.01" min="0" value="${s.gst_percent ?? 3}" />
+        </label>
+        <button type="submit" class="dash-btn dash-btn--ghost" id="pmMasterSave">Save GST</button>
+      </form>
+      <div class="pm-refresh">
+        <button type="button" class="dash-btn" id="pmRefreshRate">Refresh now</button>
+        <p class="pm-hint">Auto-updates every 5 minutes from All India Bullion (Bangalore).</p>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -169,7 +203,14 @@ function editorMarkup(p) {
             <input name="category" type="text" list="pmCats" value="${esc(p.category)}" placeholder="Choose or type" />
             <datalist id="pmCats">${categoryOptions}</datalist>
           </label>
-          <label class="pm-lbl">Material / finish (optional) ${ic('Extra descriptive note shown in specs (e.g. "Hallmarked, antique finish"). This does NOT affect price — pricing uses the Silver purity field below.')}
+          <label class="pm-lbl">Silver purity ${ic('The silver grade shown to customers — 925 sterling or 999 fine. This is descriptive only; pricing always uses the live per-gram silver price × weight (100%).')}
+            <select name="metal_purity">
+              <option value="925" ${p.metal_purity !== '999' ? 'selected' : ''}>925 Sterling Silver</option>
+              <option value="999" ${p.metal_purity === '999' ? 'selected' : ''}>999 Fine Silver</option>
+            </select>
+          </label>
+
+          <label class="pm-lbl">Material / finish (optional) ${ic('Extra descriptive note shown in specs (e.g. "Hallmarked, antique finish"). Display only — does not affect price.')}
             <input name="purity" type="text" list="pmPurity" value="${esc(p.purity)}" placeholder="e.g. Hallmarked, antique finish" />
             <datalist id="pmPurity">${purityOptions}</datalist>
           </label>
@@ -195,9 +236,9 @@ function editorMarkup(p) {
 
         <fieldset class="pm-pricing">
           <legend>Pricing</legend>
-          <p class="pm-formula pm-when-calc">Total = (Weight × Silver rate) + Weightage% + Making charge + Labour, then + GST%</p>
+          <p class="pm-formula pm-when-calc">Total = (Weight × Silver price/g, at 100%) + Weightage% + Charges, then + GST%</p>
           <div class="pm-form-grid">
-            <label class="pm-lbl">Pricing model ${ic('Auto-calculate = price is built from the master silver rate + charges below. Fixed = you type one final price. On request = no price shown, customer must enquire.')}
+            <label class="pm-lbl">Pricing model ${ic('Auto-calculate = price is built from the live silver price + weightage + charges below. Fixed = you type one final price. On request = no price shown, customer must enquire.')}
               <select name="pricing_mode" id="pmMode">${options(PRICING_MODES, p.pricing_mode || 'calculated')}</select>
             </label>
 
@@ -205,18 +246,12 @@ function editorMarkup(p) {
               <input name="price" type="number" step="0.01" min="0" value="${p.price ?? ''}" />
             </label>
 
-            <label class="pm-lbl pm-when-calc">Silver purity (rate) ${ic('Which master rate to use. 925 = sterling, 999 = fine silver. Weight × this rate = the base silver value.')}
-              <select name="metal_purity">
-                <option value="925" ${p.metal_purity !== '999' ? 'selected' : ''}>925 Sterling — ₹${Number(pricingSettings.silver_rate_925 || 0).toLocaleString('en-IN')}/g</option>
-                <option value="999" ${p.metal_purity === '999' ? 'selected' : ''}>999 Fine — ₹${Number(pricingSettings.silver_rate_999 || 0).toLocaleString('en-IN')}/g</option>
-              </select>
+            <label class="pm-lbl pm-when-calc">Weightage / wastage (%) ${ic('Percentage added on top of the silver value to cover making/wastage during crafting. Prefilled at 12%.')}
+              <input name="weightage_percent" type="number" step="0.01" min="0" value="${p.weightage_percent ?? 12}" />
+              <span class="pm-field-note">Prefilled at 12% (a typical making charge). Please check and adjust if needed.</span>
             </label>
-            <label class="pm-lbl pm-when-calc">Weightage / wastage (%) ${ic('Extra percentage added to the silver value to cover wastage during crafting. Set 0 if not applicable.')}
-              <input name="weightage_percent" type="number" step="0.01" min="0" value="${p.weightage_percent ?? 0}" />
-            </label>
-
-            <label class="pm-lbl pm-when-calc pm-col-2">Charges ${ic('Choose what to add on top of silver value: Making charges only, Labour only, both, or none. Only the selected inputs are used.')}
-              <select name="charge_mode" id="pmChargeMode">${options(CHARGE_MODES, p.charge_mode || 'making')}</select>
+            <label class="pm-lbl pm-when-calc">Charges ${ic('Optional extra charges on top of silver + weightage: making charges, labour, both, or none. Only the selected inputs are used.')}
+              <select name="charge_mode" id="pmChargeMode">${options(CHARGE_MODES, p.charge_mode || 'none')}</select>
             </label>
 
             <div class="pm-lbl pm-when-calc pm-charge-making">Making charge ${ic('The crafting charge. "% of silver value" = percent of (silver + weightage); "₹ per gram" = amount × weight; "Flat ₹" = fixed amount.')}
@@ -292,8 +327,8 @@ const blankProduct = () => ({
   pricing_mode: 'calculated',
   price: null,
   metal_purity: '925',
-  weightage_percent: 0,
-  charge_mode: 'making',
+  weightage_percent: 12,
+  charge_mode: 'none',
   making_charge_type: 'percent',
   making_charge_value: 0,
   labour_type: 'per_gram',
@@ -309,7 +344,10 @@ const blankProduct = () => ({
   sort_order: 0,
 });
 
-export async function renderProducts(root, session) {
+export async function renderProducts(root, session, opts = {}) {
+  // Staff manage the catalogue but not the master silver pricing / GST — that
+  // panel is admin-only. Everything else (product CRUD) is shared.
+  const isAdmin = opts.isAdmin !== false;
   root.innerHTML = `
   <div class="pm">
     <div id="pmMasterRegion"></div>
@@ -327,33 +365,63 @@ export async function renderProducts(root, session) {
   const masterRegion = root.querySelector('#pmMasterRegion');
 
   // ---- Master pricing panel -------------------------------------------------
+  const setMasterMsg = (text, cls = 'pm-save-msg') => {
+    const el = masterRegion.querySelector('#pmMasterMsg');
+    if (el) {
+      el.textContent = text;
+      el.className = cls;
+    }
+  };
+
   const renderMaster = () => {
+    if (!isAdmin) {
+      masterRegion.innerHTML = '';
+      return;
+    }
     masterRegion.innerHTML = masterMarkup(pricingSettings);
     wireInfo(masterRegion);
     const form = masterRegion.querySelector('#pmMasterForm');
-    const msg = masterRegion.querySelector('#pmMasterMsg');
+
+    // GST is the only editable master value; the silver rate comes from AIB.
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
-      const patch = {
-        silver_rate_925: Number(fd.get('silver_rate_925') || 0),
-        silver_rate_999: Number(fd.get('silver_rate_999') || 0),
-        gst_percent: Number(fd.get('gst_percent') || 0),
-      };
+      const patch = { gst_percent: Number(fd.get('gst_percent') || 0) };
       const btn = form.querySelector('#pmMasterSave');
       btn.disabled = true;
-      msg.textContent = 'Saving…';
-      msg.className = 'pm-save-msg';
+      setMasterMsg('Saving…');
       const { error } = await supabase.from('pricing_settings').update(patch).eq('id', 1);
       btn.disabled = false;
       if (error) {
-        msg.textContent = `Save failed: ${error.message}`;
-        msg.className = 'pm-save-msg is-error';
+        setMasterMsg(`Save failed: ${error.message}`, 'pm-save-msg is-error');
         return;
       }
       pricingSettings = { ...pricingSettings, ...patch };
-      msg.textContent = 'Saved ✓ — product prices updated.';
-      msg.className = 'pm-save-msg is-ok';
+      setMasterMsg('Saved ✓ — prices updated.', 'pm-save-msg is-ok');
+      reload();
+    });
+
+    // Manual "Refresh now" — fetches the AIB rate immediately (in addition to
+    // the automatic 60-second poll).
+    masterRegion.querySelector('#pmRefreshRate').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      setMasterMsg('Fetching live rate…');
+      let outcome = { text: '', cls: 'pm-save-msg' };
+      try {
+        const { data, error } = await supabase.rpc('admin_refresh_silver_price');
+        if (error) throw error;
+        if (data?.status === 'success') {
+          outcome = { text: `Updated ✓ — ₹${Number(data.silver_per_gram).toLocaleString('en-IN')}/g`, cls: 'pm-save-msg is-ok' };
+        } else {
+          outcome = { text: `Could not refresh (${data?.reason || 'error'}). Last saved rate kept.`, cls: 'pm-save-msg is-error' };
+        }
+        pricingSettings = await fetchPricingSettings();
+      } catch (err) {
+        outcome = { text: `Refresh failed: ${err.message}`, cls: 'pm-save-msg is-error' };
+      }
+      renderMaster();
+      setMasterMsg(outcome.text, outcome.cls);
       reload();
     });
   };
@@ -616,7 +684,8 @@ export async function renderProducts(root, session) {
     });
   }
 
-  // Load pricing settings first so list + editor previews are accurate.
+  // Load pricing settings + fetch-budget usage first so list + editor previews
+  // and the master panel are accurate.
   try {
     pricingSettings = await fetchPricingSettings();
   } catch {

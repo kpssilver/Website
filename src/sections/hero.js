@@ -11,6 +11,7 @@ export function Hero() {
   <div class="hero-inner" id="heroInner">
     <h1 class="sr-only">${site.brand}: silver articles from 925 sterling to 999 fine in Nagarthpet, Bengaluru since ${site.established}</h1>
     ${HeroLogo()}
+    <p class="hero-motto" data-intro data-ck="hero.motto">${cd('hero.motto')}</p>
     <p class="hero-eyebrow" data-intro data-ck="hero.eyebrow">${cd('hero.eyebrow')}</p>
     <p class="hero-sub" data-intro data-ck="hero.sub">${cd('hero.sub')}</p>
     <div class="hero-actions" data-intro>

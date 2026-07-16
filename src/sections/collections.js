@@ -6,15 +6,17 @@ import { cd } from '../content/schema.js';
 // (or later, wiring a card to a product page) is a data change, not markup.
 export function Collections() {
   const cards = collections
-    .map(
-      (c) => `
+    .map((c, i) => {
+      const kT = `collections.item${i + 1}_title`;
+      const kC = `collections.item${i + 1}_copy`;
+      return `
       <a class="card" href="/shop.html?category=${encodeURIComponent(c.category)}">
         ${c.icon}
-        <h3>${c.title}</h3>
-        <p>${c.copy}</p>
+        <h3 data-ck="${kT}">${cd(kT)}</h3>
+        <p data-ck="${kC}">${cd(kC)}</p>
         <span class="card-cta">View collection <span aria-hidden="true">→</span></span>
-      </a>`,
-    )
+      </a>`;
+    })
     .join('');
 
   return `

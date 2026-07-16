@@ -124,6 +124,8 @@ body.shop-modal-open { overflow: hidden; }
 .shop-detail-sub { color: var(--silver-dim); margin-top: 0.4rem; font-size: 0.95rem; }
 .shop-detail-price { display: flex; align-items: center; gap: 0.8rem; margin: 1rem 0; }
 .shop-detail-price .shop-price { font-size: 1.5rem; }
+.shop-price-approx { font-family: var(--fb, inherit); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--silver-dim); vertical-align: middle; }
+.shop-approx-note { margin: 0.1rem 0 0.4rem; font-size: 0.82rem; color: var(--silver-dim); line-height: 1.55; }
 /* Inside the detail column the sold-out badge must sit inline next to the price,
    not float to the modal's top-right corner near the close button. */
 .shop-detail-price .shop-tag--out { position: static; top: auto; right: auto; }
@@ -145,6 +147,12 @@ body.shop-modal-open { overflow: hidden; }
 .shop-spec dd { color: var(--silver-hi); text-align: right; }
 .shop-detail-cta { display: flex; flex-direction: column; gap: 0.6rem; }
 .shop-detail-cta .btn { width: 100%; text-align: center; }
+/* <button class="btn"> needs a font reset since buttons don't inherit it. */
+.shop-detail-cta button.btn { font-family: inherit; }
+.shop-pay-note { margin-top: 0.6rem; font-size: 0.74rem; color: var(--silver-dim); line-height: 1.5; }
+.shop-pay-msg { margin-top: 0.6rem; font-size: 0.84rem; color: var(--silver); line-height: 1.5; }
+.shop-pay-msg.is-ok { color: #8fe3b0; }
+.shop-pay-msg.is-error { color: #ffb4a8; }
 .shop-detail-note { margin-top: 1rem; font-size: 0.78rem; color: var(--silver-dim); line-height: 1.6; }
 
 @media (max-width: 760px) {
