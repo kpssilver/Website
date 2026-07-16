@@ -4,7 +4,10 @@
 User-agent: *
 Allow: /
 
-# Internal super-admin dashboard — keep out of search results.
+# Internal admin & staff portals — keep out of search results.
+Disallow: /admin
 Disallow: /admin.html
+Disallow: /staff
+Disallow: /staff.html
 
 Sitemap: https://www.kpssilver.com/sitemap.xml

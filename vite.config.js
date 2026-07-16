@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createOrder, verifyPayment } from './api/_lib/razorpay.js';
 import { handleStaffAction } from './api/_lib/staff.js';
 import { readSupabaseEnv } from './api/_lib/supabaseAdmin.js';
+import { buildSitemap } from './api/_lib/sitemap.js';
 
 // Local parity for the Vercel serverless functions: this middleware serves the
 // /api/* endpoints during `npm run dev` so the Razorpay and staff-management
@@ -37,6 +38,15 @@ function devApi(env) {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = (req.url || '').split('?')[0];
+
+        // Live sitemap parity with production (/sitemap.xml -> generated XML).
+        if (url === '/sitemap.xml') {
+          const xml = await buildSitemap(env);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+          return res.end(xml);
+        }
+
         const isRazorpay = url === '/api/create-order' || url === '/api/verify-payment';
         const staffMatch = url.match(/^\/api\/staff\/([a-z-]+)$/);
         if (!isRazorpay && !staffMatch) return next();
