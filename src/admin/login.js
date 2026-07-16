@@ -15,7 +15,7 @@ export function renderLogin(root, onSuccess, initialError = '', opts = {}) {
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-brand">
-      <span class="login-mark">KPS</span>
+      <img class="login-mark" src="/favicon.svg" alt="KPS Silver" width="40" height="40" />
       <span class="login-brand-sub">${brandSub}</span>
     </div>
     <h1>Welcome back</h1>

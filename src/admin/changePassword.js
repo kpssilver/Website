@@ -12,7 +12,7 @@ export function renderChangePassword(root, name, onDone, onCancel) {
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-brand">
-      <span class="login-mark">KPS</span>
+      <img class="login-mark" src="/favicon.svg" alt="KPS Silver" width="40" height="40" />
       <span class="login-brand-sub">Silver · Staff</span>
     </div>
     <h1>Set a new password</h1>

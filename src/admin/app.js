@@ -26,7 +26,7 @@ function shell(name, role, tabs) {
 <div class="dash">
   <header class="dash-top">
     <div class="dash-title">
-      <span class="dash-mark">KPS</span>
+      <img class="dash-mark" src="/favicon.svg" alt="KPS Silver" width="38" height="38" />
       <div>
         <h1>${roleLabel}</h1>
         <p>KPS Silver</p>

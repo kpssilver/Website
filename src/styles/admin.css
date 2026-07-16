@@ -52,13 +52,11 @@
 }
 .login-brand { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.8rem; }
 .login-mark {
-  font-family: var(--fd);
-  font-size: 1.15rem;
-  letter-spacing: 0.18em;
-  color: var(--a-ink);
-  background: linear-gradient(120deg, var(--a-rose-hi), var(--a-rose));
-  padding: 0.35rem 0.6rem;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: block;
+  object-fit: contain;
 }
 .login-brand-sub { font-size: 0.8rem; letter-spacing: 0.06em; color: var(--a-text-dim); }
 .login-card h1 { font-family: var(--fd); font-weight: 400; font-size: 1.7rem; margin: 0 0 0.35rem; }
@@ -119,13 +117,11 @@
 }
 .dash-title { display: flex; align-items: center; gap: 0.85rem; }
 .dash-mark {
-  font-family: var(--fd);
-  font-size: 1.05rem;
-  letter-spacing: 0.16em;
-  color: var(--a-ink);
-  background: linear-gradient(120deg, var(--a-rose-hi), var(--a-rose));
-  padding: 0.45rem 0.6rem;
+  width: 38px;
+  height: 38px;
   border-radius: 9px;
+  display: block;
+  object-fit: contain;
 }
 .dash-title h1 { font-family: var(--fd); font-weight: 400; font-size: 1.55rem; margin: 0; line-height: 1.1; }
 .dash-title p { margin: 0.15rem 0 0; font-size: 0.8rem; color: var(--a-text-dim); }
