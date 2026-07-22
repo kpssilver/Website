@@ -1088,6 +1088,10 @@
 .stk-stat-sub { font-size: 0.68rem; color: var(--a-text-dim); }
 .biz-parties-top { margin-top: 1.6rem; }
 .pm-title--sm { font-size: 1.15rem; }
+.biz-bal-note { font-size: 0.72rem; color: var(--a-rose-hi); margin-top: 0.35rem; line-height: 1.35; }
+.biz-drill-note { display: block; font-size: 0.7rem; color: var(--a-rose-hi); margin-top: 0.15rem; }
+.inv-method-wrap { display: flex; }
+.inv-method-wrap .pm-lbl { width: 100%; }
 @media (max-width: 720px) {
   .biz-kpis { grid-template-columns: repeat(2, 1fr); }
   .biz-date-presets { margin-left: 0; }

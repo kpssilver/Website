@@ -20,6 +20,9 @@ import {
 } from '../data/business.js';
 import { openInvoiceModal } from './invoices.js';
 import { openStockItemEditor } from './stock.js';
+import { comboField, wireCombos } from './combo.js';
+
+const PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer', 'Cheque', 'Silver'];
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -87,9 +90,7 @@ function paymentEditor(party) {
         <div class="pm-form-grid">
           <label class="pm-lbl">Amount (₹) *<input name="amount" type="number" step="0.01" min="0.01" required /></label>
           <label class="pm-lbl">Date<input name="paid_on" type="date" value="${new Date().toISOString().slice(0, 10)}" /></label>
-          <label class="pm-lbl">Method
-            <select name="method"><option>Cash</option><option>UPI</option><option>Card</option><option>Bank transfer</option><option>Cheque</option></select>
-          </label>
+          ${comboField({ name: 'method', label: 'Method', value: 'Cash', options: PAYMENT_METHODS })}
           <label class="pm-lbl pm-col-2">Notes<input name="notes" type="text" /></label>
         </div>
         <div class="pm-form-actions">
@@ -180,12 +181,21 @@ export async function renderBusiness(root, session) {
   const renderSummary = () => {
     const sales = sumTotals(['sale']);
     const returns = sumTotals(['sale_return', 'purchase_return']);
-    const receivable = balances
-      .filter((b) => b.kind === 'customer')
-      .reduce((s, b) => s + Math.max(0, Number(b.balance)), 0);
-    const payable = balances
-      .filter((b) => b.kind === 'seller')
-      .reduce((s, b) => s + Math.max(0, Number(b.balance)), 0);
+    // A customer normally owes us (receivable); if their balance is negative we
+    // hold their money (a payable). Sellers are the mirror image. So negatives
+    // flip sides rather than being ignored.
+    let receivable = 0;
+    let payable = 0;
+    balances.forEach((b) => {
+      const bal = Number(b.balance);
+      if (b.kind === 'customer') {
+        if (bal > 0) receivable += bal;
+        else payable += -bal;
+      } else {
+        if (bal > 0) payable += bal;
+        else receivable += -bal;
+      }
+    });
     const saleCount = invoices.filter((i) => i.kind === 'sale').length;
     const retCount = invoices.filter((i) => /return/.test(i.kind)).length;
     summary.innerHTML = `
@@ -242,6 +252,15 @@ export async function renderBusiness(root, session) {
                 <span class="biz-bal-lbl">${balLbl}</span>
                 <span class="biz-bal-amt">${balAmt}</span>
               </div>
+              ${
+                state === 'advance'
+                  ? `<div class="biz-bal-note">${
+                      b.kind === 'customer'
+                        ? 'Credit balance — we owe this customer. Counted under Payables.'
+                        : 'Overpaid — this seller owes us. Counted under Receivables.'
+                    }</div>`
+                  : ''
+              }
               <div class="biz-card-stats">
                 <span><em>Opening</em> ${money(b.opening_balance)}</span>
                 <span><em>Invoiced</em> ${money(b.invoiced)}</span>
@@ -398,6 +417,7 @@ export async function renderBusiness(root, session) {
     holder.querySelector('#payBackdrop').addEventListener('click', (e) => {
       if (e.target.id === 'payBackdrop') close();
     });
+    wireCombos(form);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -494,26 +514,45 @@ export async function renderBusiness(root, session) {
     );
   }
 
-  // KPI drill-down: who owes us (receivable) / who we owe (payable).
+  // KPI drill-down: who owes us (receivable) / who we owe (payable). A customer
+  // with a negative balance (credit held) surfaces under Payables, and a seller
+  // with a negative balance under Receivables — each flagged with a narration.
   function openDrill(kind) {
     const isRec = kind === 'receivable';
     const rows = balances
-      .filter((b) => b.kind === (isRec ? 'customer' : 'seller') && Number(b.balance) > 0.005)
-      .sort((a, b) => Number(b.balance) - Number(a.balance));
-    const total = rows.reduce((s, b) => s + Number(b.balance), 0);
+      .map((b) => {
+        const bal = Number(b.balance);
+        let amount = 0;
+        let note = '';
+        if (isRec) {
+          if (b.kind === 'customer' && bal > 0) amount = bal;
+          else if (b.kind === 'seller' && bal < 0) {
+            amount = -bal;
+            note = 'Seller overpaid — they owe us';
+          }
+        } else if (b.kind === 'seller' && bal > 0) amount = bal;
+        else if (b.kind === 'customer' && bal < 0) {
+          amount = -bal;
+          note = 'Customer credit — we hold their money';
+        }
+        return { b, amount, note };
+      })
+      .filter((r) => r.amount > 0.005)
+      .sort((a, b) => b.amount - a.amount);
+    const total = rows.reduce((s, r) => s + r.amount, 0);
     const { holder, body, close } = openModalShell(isRec ? 'Receivables — who owes us' : 'Payables — who we owe');
     body.innerHTML = `
-      <p class="biz-drill-total">${rows.length} ${isRec ? 'customer(s)' : 'seller(s)'} · ${money(total)} outstanding</p>
+      <p class="biz-drill-total">${rows.length} ${rows.length === 1 ? 'party' : 'parties'} · ${money(total)} outstanding</p>
       ${
         rows.length
           ? `<div class="biz-drill-list">${rows
               .map(
-                (b) => `<button type="button" class="biz-drill-row" data-open="${b.id}">
-                  <span class="biz-drill-name">${esc(b.name)}${b.mobile ? ` · ${esc(b.mobile)}` : ''}</span>
-                  <span class="biz-drill-amt">${money(b.balance)}</span></button>`,
+                (r) => `<button type="button" class="biz-drill-row" data-open="${r.b.id}">
+                  <span class="biz-drill-name">${esc(r.b.name)}${r.b.mobile ? ` · ${esc(r.b.mobile)}` : ''}${r.note ? `<span class="biz-drill-note">${esc(r.note)}</span>` : ''}</span>
+                  <span class="biz-drill-amt">${money(r.amount)}</span></button>`,
               )
               .join('')}</div>`
-          : `<p class="pm-hint">Nothing outstanding — all ${isRec ? 'customers are settled' : 'sellers are paid'}.</p>`
+          : `<p class="pm-hint">Nothing outstanding here.</p>`
       }`;
     body.querySelectorAll('[data-open]').forEach((btn) =>
       btn.addEventListener('click', () => {

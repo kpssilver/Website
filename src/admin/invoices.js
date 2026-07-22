@@ -5,6 +5,7 @@
 // party's receivable/payable. Invoices can be printed.
 // =============================================================================
 import { openScanner } from './scanner.js';
+import { comboField, wireCombos } from './combo.js';
 import { fetchProducts } from '../data/products.js';
 import { fetchPricingSettings, computePrice } from '../data/pricing.js';
 import { site } from '../config/site.js';
@@ -16,11 +17,21 @@ import {
   fetchInvoices,
   fetchInvoice,
   createInvoice,
+  createPayment,
   deleteInvoice,
   fetchUserDirectory,
   actorLabel,
   money,
 } from '../data/business.js';
+
+// Settlement methods offered on invoices + payments. "Silver" lets a customer
+// settle with silver metal; "Add new…" allows any custom method.
+const PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer', 'Cheque', 'Silver'];
+
+// Payment direction implied by an invoice kind (money in vs out).
+function paymentDirection(kind) {
+  return kind === 'sale' || kind === 'purchase_return' ? 'in' : 'out';
+}
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -121,7 +132,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
         <div class="inv-results" id="invResults" hidden></div>
 
         <table class="inv-items">
-          <thead><tr><th>Item</th><th>Qty</th><th>Wt (g)</th><th>Rate ex-GST</th><th>Amount</th><th></th></tr></thead>
+          <thead><tr><th>Item</th><th>Qty</th><th>Wt (g)</th><th>Rate/g ex-GST</th><th>Amount</th><th></th></tr></thead>
           <tbody id="invItemsBody"></tbody>
         </table>
 
@@ -130,6 +141,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
             <label class="pm-lbl">Discount (₹)<input id="invDiscount" type="number" step="0.01" min="0" value="0" /></label>
             <label class="pm-lbl">GST / Tax (%)<input id="invTax" type="number" step="0.001" min="0" value="3" /></label>
             <label class="pm-lbl">Amount paid (₹)<input id="invPaid" type="number" step="0.01" min="0" value="0" /></label>
+            <div id="invMethodWrap" class="inv-method-wrap">${comboField({ name: 'payment_method', label: 'Payment method', value: 'Cash', options: PAYMENT_METHODS })}</div>
           </div>
           <div class="inv-totals" id="invTotals"></div>
         </div>
@@ -153,6 +165,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
   $('#invBackdrop').addEventListener('click', (e) => {
     if (e.target.id === 'invBackdrop') close();
   });
+  wireCombos(holder);
 
   let products = [];
   let settings = {};
@@ -163,13 +176,15 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
 
   const lineFromProduct = (p) => {
     const r = computePrice(p, settings);
-    // Rate is the price BEFORE GST — GST is applied once, transparently, via the
-    // invoice's Tax (%) field (defaulted to the master GST rate). For calculated
-    // pieces that's the subtotal; fixed prices are treated as the pre-tax base.
+    // `rate` is the per-PIECE price BEFORE GST (GST is applied once via the Tax
+    // field). We also derive a per-GRAM figure for display/editing beside the
+    // weight; editing per-gram recomputes rate = per_gram × weight.
     let rate;
     if (r.mode === 'calculated') rate = round2(r.subtotal);
     else if (r.mode === 'fixed') rate = round2(r.total);
     else rate = round2(Number(p.price || 0));
+    const weight = p.weight_grams || null;
+    const perGram = weight > 0 ? round2(rate / weight) : round2(rate);
     return {
       product_id: p.id,
       stock_item_id: null,
@@ -178,10 +193,18 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
       design_no: null,
       hsn: null,
       quantity: 1,
-      weight: p.weight_grams || null,
+      weight,
+      per_gram: perGram,
       rate,
       amount: rate,
     };
+  };
+
+  // Recompute a line's rate + amount from its per-gram price and weight.
+  const recalcLine = (it) => {
+    const w = Number(it.weight || 0);
+    it.rate = w > 0 ? round2(Number(it.per_gram || 0) * w) : round2(Number(it.per_gram || 0));
+    it.amount = round2(Number(it.quantity || 0) * it.rate);
   };
 
   const renderTotals = () => {
@@ -211,7 +234,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
           <td>${esc(it.description)}${it.sku ? `<br><small>${esc(it.sku)}</small>` : ''}</td>
           <td><input class="inv-cell" data-f="quantity" type="number" step="0.001" min="0" value="${it.quantity}" /></td>
           <td><input class="inv-cell" data-f="weight" type="number" step="0.001" min="0" value="${it.weight ?? ''}" /></td>
-          <td><input class="inv-cell" data-f="rate" type="number" step="0.01" min="0" value="${it.rate}" /></td>
+          <td><input class="inv-cell" data-f="per_gram" type="number" step="0.01" min="0" value="${it.per_gram ?? it.rate}" /></td>
           <td class="r">${money(it.amount)}</td>
           <td><button type="button" class="inv-rm" data-rm="${i}" aria-label="Remove">✕</button></td>
         </tr>`,
@@ -227,7 +250,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
           const i = Number(tr.dataset.i);
           const f = inp.dataset.f;
           items[i][f] = Number(inp.value || 0);
-          items[i].amount = round2(Number(items[i].quantity || 0) * Number(items[i].rate || 0));
+          recalcLine(items[i]);
           tr.querySelector('td.r').textContent = money(items[i].amount);
           renderTotals();
         }),
@@ -377,6 +400,23 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
         amount: it.amount,
       }));
       const saved = await createInvoice(invoice, lineItems);
+      // If money changed hands, record it as a payment (with method) so it
+      // actually settles the party balance and carries the payment method.
+      if (t.paid > 0 && partyId) {
+        const method = holder.querySelector('#invMethodWrap .kps-combo-val')?.value || null;
+        try {
+          await createPayment({
+            party_id: partyId,
+            direction: paymentDirection(kindSel.value),
+            amount: t.paid,
+            method: method || null,
+            paid_on: invoice.invoice_date,
+            notes: `Paid against ${saved.invoice_no}`,
+          });
+        } catch (payErr) {
+          console.error('[KPS] payment record failed:', payErr);
+        }
+      }
       close();
       if (onSaved) onSaved(saved);
       const party = parties.find((p) => p.id === partyId) || { name: $('#invNewName').value.trim() };

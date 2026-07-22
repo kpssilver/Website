@@ -21,6 +21,8 @@ import {
   updateStockItem,
   deleteStockItem,
   uploadStockMedia,
+  fetchStockLists,
+  insertStockList,
   totalGrossWeight,
   totalQuantity,
   formatGrams,
@@ -69,6 +71,97 @@ function wireInfo(scope) {
       pop.textContent = btn.dataset.info;
       btn.after(pop);
     }
+  });
+}
+
+// Build dropdown suggestion sets from master lists + values already used on
+// items + a static seed list (deduped, sorted).
+function buildSets(items, lists = {}) {
+  const names = (arr) => (arr || []).map((x) => x.name);
+  return {
+    categories: mergeSuggestions([...names(lists.category), ...distinctValues(items, 'category')], STOCK_CATEGORIES),
+    subcategories: mergeSuggestions([...names(lists.subcategory), ...distinctValues(items, 'subcategory')], STOCK_SUBCATEGORIES),
+    suppliers: mergeSuggestions([...names(lists.supplier), ...distinctValues(items, 'supplier')], []),
+    collections: mergeSuggestions([...names(lists.collection), ...distinctValues(items, 'collection')], []),
+  };
+}
+
+// Modal to add a new category / subcategory / supplier / collection with proper
+// details. Persists to stock_lists and resolves with the new name (or null).
+function openAddListModal(kind) {
+  const titles = { category: 'category', subcategory: 'sub category', supplier: 'supplier', collection: 'collection' };
+  const isSupplier = kind === 'supplier';
+  return new Promise((resolve) => {
+    const holder = document.createElement('div');
+    holder.innerHTML = `
+    <div class="pm-modal-backdrop" id="slBackdrop" style="z-index:120">
+      <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="New ${titles[kind] || kind}">
+        <div class="pm-modal-head"><h2>New ${titles[kind] || kind}</h2><button class="pm-x" id="slClose" type="button" aria-label="Close">✕</button></div>
+        <form class="pm-form" id="slForm">
+          <div class="pm-form-grid">
+            <label class="pm-lbl pm-col-2">Name *<input name="name" type="text" required autocomplete="off" placeholder="e.g. ${isSupplier ? 'Sri Lakshmi Silvers' : kind === 'collection' ? 'Heritage' : 'Pooja Articles'}" /></label>
+            ${
+              isSupplier
+                ? `<label class="pm-lbl">Mobile<input name="mobile" type="text" placeholder="Optional" /></label>
+                   <label class="pm-lbl">GST / code<input name="notes" type="text" placeholder="Optional" /></label>
+                   <label class="pm-lbl pm-col-2">Address<input name="address" type="text" placeholder="Optional" /></label>`
+                : `<label class="pm-lbl pm-col-2">Description<textarea name="description" rows="2" placeholder="Optional details for this ${titles[kind] || kind}"></textarea></label>`
+            }
+          </div>
+          <div class="pm-form-actions">
+            <span class="pm-save-msg" id="slMsg"></span>
+            <button type="button" class="dash-btn dash-btn--ghost" id="slCancel">Cancel</button>
+            <button type="submit" class="dash-btn" id="slSubmit">Add &amp; save</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+    document.body.appendChild(holder);
+    const done = (v) => {
+      holder.remove();
+      resolve(v);
+    };
+    holder.querySelector('#slClose').addEventListener('click', () => done(null));
+    holder.querySelector('#slCancel').addEventListener('click', () => done(null));
+    holder.querySelector('#slBackdrop').addEventListener('click', (e) => {
+      if (e.target.id === 'slBackdrop') done(null);
+    });
+    holder.querySelector('#slForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = (fd.get('name') || '').trim();
+      const msg = holder.querySelector('#slMsg');
+      if (!name) {
+        msg.textContent = 'Name is required.';
+        msg.className = 'pm-save-msg is-error';
+        return;
+      }
+      const btn = holder.querySelector('#slSubmit');
+      btn.disabled = true;
+      msg.textContent = 'Saving…';
+      msg.className = 'pm-save-msg';
+      try {
+        await insertStockList({
+          kind,
+          name,
+          description: (fd.get('description') || '').trim() || null,
+          mobile: (fd.get('mobile') || '').trim() || null,
+          address: (fd.get('address') || '').trim() || null,
+          notes: (fd.get('notes') || '').trim() || null,
+        });
+        done(name);
+      } catch (err) {
+        // Already exists → just reuse the name.
+        if (/duplicate|unique/i.test(err.message || '')) {
+          done(name);
+          return;
+        }
+        msg.textContent = `Save failed: ${err.message}`;
+        msg.className = 'pm-save-msg is-error';
+        btn.disabled = false;
+      }
+    });
+    holder.querySelector('input[name="name"]').focus();
   });
 }
 
@@ -154,11 +247,11 @@ function editorMarkup(it, sets = {}) {
             <input name="title" type="text" value="${esc(it.title)}" placeholder="Optional — e.g. Peacock Deepam (large)" />
           </label>
 
-          ${comboField({ name: 'category', label: 'Category *', value: it.category || '', options: cats, required: true, extra: ic('Broad group for the item. Pick an existing one or choose “Add new…” to create a category.') })}
-          ${comboField({ name: 'subcategory', label: 'Sub category', value: it.subcategory || '', options: subs, extra: ic('A finer grouping within the category. Pick an existing one or add a new sub category.') })}
+          ${comboField({ name: 'category', label: 'Category *', value: it.category || '', options: cats, required: true, kind: 'category', extra: ic('Broad group for the item. Pick an existing one or choose “Add new…” to create a category (saved for reuse).') })}
+          ${comboField({ name: 'subcategory', label: 'Sub category', value: it.subcategory || '', options: subs, kind: 'subcategory', extra: ic('A finer grouping within the category. Pick an existing one or add a new sub category (saved for reuse).') })}
 
-          ${comboField({ name: 'supplier', label: 'Supplier name', value: it.supplier || '', options: sups, extra: ic('Who supplied this piece. Pick an existing supplier or add a new one.') })}
-          ${comboField({ name: 'collection', label: 'Collection', value: it.collection || '', options: cols, extra: ic('The collection / range this piece belongs to. Pick an existing one or add a new collection.') })}
+          ${comboField({ name: 'supplier', label: 'Supplier name', value: it.supplier || '', options: sups, kind: 'supplier', extra: ic('Who supplied this piece. Pick an existing supplier or add a new one with contact details (saved for reuse).') })}
+          ${comboField({ name: 'collection', label: 'Collection', value: it.collection || '', options: cols, kind: 'collection', extra: ic('The collection / range this piece belongs to. Pick an existing one or add a new collection (saved for reuse).') })}
 
           <label class="pm-lbl">Gross weight (grams) ${ic('The total weight of the piece in grams. Used to compute the total gross weight of stock.')}
             <input name="gross_weight" type="number" step="0.001" min="0" value="${it.gross_weight ?? ''}" />
@@ -446,11 +539,13 @@ export async function renderStock(root, session, opts = {}) {
     try {
       let products;
       let settings;
-      [items, dir, products, settings] = await Promise.all([
+      let lists;
+      [items, dir, products, settings, lists] = await Promise.all([
         fetchStockItems(),
         fetchUserDirectory(),
         fetchProducts().catch(() => []),
         fetchPricingSettings().catch(() => null),
+        fetchStockLists().catch(() => ({})),
       ]);
       // Map each stock item to a display price via its linked product.
       const byId = {};
@@ -462,12 +557,7 @@ export async function renderStock(root, session, opts = {}) {
         const p = it.product_id ? byId[it.product_id] : null;
         priceMap[it.id] = p ? priceLabel(p, settings) : '';
       });
-      sets = {
-        categories: mergeSuggestions(distinctValues(items, 'category'), STOCK_CATEGORIES),
-        subcategories: mergeSuggestions(distinctValues(items, 'subcategory'), STOCK_SUBCATEGORIES),
-        suppliers: distinctValues(items, 'supplier'),
-        collections: distinctValues(items, 'collection'),
-      };
+      sets = buildSets(items, lists);
       renderSummary();
       renderFilters();
       renderList();
@@ -644,13 +734,8 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
   // When invoked standalone (no sets/dir passed), load suggestions + directory.
   if (!sets) {
     try {
-      const all = await fetchStockItems();
-      sets = {
-        categories: mergeSuggestions(distinctValues(all, 'category'), STOCK_CATEGORIES),
-        subcategories: mergeSuggestions(distinctValues(all, 'subcategory'), STOCK_SUBCATEGORIES),
-        suppliers: distinctValues(all, 'supplier'),
-        collections: distinctValues(all, 'collection'),
-      };
+      const [all, lists] = await Promise.all([fetchStockItems(), fetchStockLists()]);
+      sets = buildSets(all, lists);
     } catch {
       sets = {};
     }
@@ -684,7 +769,7 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
     }),
   );
 
-  wireCombos(form);
+  wireCombos(form, { onAddNew: openAddListModal });
 
   const renderImages = () => {
     imagesWrap.innerHTML = images.length

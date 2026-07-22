@@ -69,6 +69,25 @@ export async function fetchStockMovements(stockItemId) {
   return data || [];
 }
 
+// ---- Master dropdown lists (category / subcategory / supplier / collection) --
+// Persisted so options added "on the go" are reusable and carry proper details.
+export async function fetchStockLists() {
+  if (!isSupabaseConfigured) return { category: [], subcategory: [], supplier: [], collection: [] };
+  const { data, error } = await supabase.from('stock_lists').select('*').order('name');
+  const grouped = { category: [], subcategory: [], supplier: [], collection: [] };
+  if (error) return grouped;
+  (data || []).forEach((r) => {
+    if (grouped[r.kind]) grouped[r.kind].push(r);
+  });
+  return grouped;
+}
+
+export async function insertStockList(payload) {
+  const { data, error } = await supabase.from('stock_lists').insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+
 // The stock item linked to a shop product (used to show inventory from Products).
 export async function fetchStockItemByProduct(productId) {
   if (!isSupabaseConfigured || !productId) return null;
