@@ -62,6 +62,22 @@ export async function fetchInvoices({ limit = 200 } = {}) {
   return data || [];
 }
 
+// Invoices within an (inclusive) invoice_date range — powers the business
+// dashboard's sales / returns totals and drill-downs.
+export async function fetchInvoicesRange({ from = null, to = null } = {}) {
+  if (!isSupabaseConfigured) return [];
+  let q = supabase
+    .from('invoices')
+    .select('*, party:parties(id,name,kind,mobile)')
+    .order('invoice_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (from) q = q.gte('invoice_date', from);
+  if (to) q = q.lte('invoice_date', to);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
 export async function fetchInvoice(id) {
   const { data, error } = await supabase
     .from('invoices')

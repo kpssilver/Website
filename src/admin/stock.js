@@ -11,6 +11,7 @@ import { openScanner } from './scanner.js';
 import { openInvoiceModal } from './invoices.js';
 import { openCatalogue } from './catalogue.js';
 import { mountInventoryPanel } from './inventoryPanel.js';
+import { comboField, wireCombos } from './combo.js';
 import { fetchUserDirectory, actorLabel } from '../data/business.js';
 import { fetchProducts } from '../data/products.js';
 import { fetchPricingSettings, priceLabel } from '../data/pricing.js';
@@ -135,22 +136,14 @@ function listMarkup(items, dir = {}, opts = {}) {
 }
 
 // ---- Editor ----------------------------------------------------------------
-const optionList = (arr) => (arr || []).map((c) => `<option value="${esc(c)}"></option>`).join('');
-
 function editorMarkup(it, sets = {}) {
   const isNew = !it.id;
-  const catOptions = optionList(sets.categories || STOCK_CATEGORIES);
-  const subOptions = optionList(sets.subcategories || STOCK_SUBCATEGORIES);
-  const supOptions = optionList(sets.suppliers || []);
-  const colOptions = optionList(sets.collections || []);
-  return `
-  <div class="pm-modal-backdrop" id="stkBackdrop">
-    <div class="pm-modal" role="dialog" aria-modal="true" aria-label="${isNew ? 'New stock item' : 'Edit stock item'}">
-      <div class="pm-modal-head">
-        <h2>${isNew ? 'New stock item' : 'Edit stock item'}</h2>
-        <button class="pm-x" id="stkClose" type="button" aria-label="Close">✕</button>
-      </div>
-      <form class="pm-form" id="stkForm">
+  const cats = sets.categories || STOCK_CATEGORIES;
+  const subs = sets.subcategories || STOCK_SUBCATEGORIES;
+  const sups = sets.suppliers || [];
+  const cols = sets.collections || [];
+  const detailsForm = `
+      <form class="pm-form stk-pane${isNew ? '' : ' is-hidden'}" data-pane="details" id="stkForm">
         ${
           isNew
             ? '<p class="pm-hint">An SKU and design number are assigned automatically when you save.</p>'
@@ -161,23 +154,11 @@ function editorMarkup(it, sets = {}) {
             <input name="title" type="text" value="${esc(it.title)}" placeholder="Optional — e.g. Peacock Deepam (large)" />
           </label>
 
-          <label class="pm-lbl">Category * ${ic('Broad group for the item. Choose an existing one or type a new category.')}
-            <input name="category" type="text" list="stkCats" required value="${esc(it.category)}" placeholder="Choose or type" />
-            <datalist id="stkCats">${catOptions}</datalist>
-          </label>
-          <label class="pm-lbl">Sub category ${ic('A finer grouping within the category, e.g. "Deepam", "Kalash", "Idol".')}
-            <input name="subcategory" type="text" list="stkSubs" value="${esc(it.subcategory)}" placeholder="Choose or type" />
-            <datalist id="stkSubs">${subOptions}</datalist>
-          </label>
+          ${comboField({ name: 'category', label: 'Category *', value: it.category || '', options: cats, required: true, extra: ic('Broad group for the item. Pick an existing one or choose “Add new…” to create a category.') })}
+          ${comboField({ name: 'subcategory', label: 'Sub category', value: it.subcategory || '', options: subs, extra: ic('A finer grouping within the category. Pick an existing one or add a new sub category.') })}
 
-          <label class="pm-lbl">Supplier name ${ic('Who supplied this piece — for internal sourcing records. Pick an existing supplier or type a new one.')}
-            <input name="supplier" type="text" list="stkSuppliers" value="${esc(it.supplier)}" placeholder="Choose or type" />
-            <datalist id="stkSuppliers">${supOptions}</datalist>
-          </label>
-          <label class="pm-lbl">Collection ${ic('The collection or range this piece belongs to, e.g. "Heritage". Pick an existing one or type a new one.')}
-            <input name="collection" type="text" list="stkCollections" value="${esc(it.collection)}" placeholder="Choose or type" />
-            <datalist id="stkCollections">${colOptions}</datalist>
-          </label>
+          ${comboField({ name: 'supplier', label: 'Supplier name', value: it.supplier || '', options: sups, extra: ic('Who supplied this piece. Pick an existing supplier or add a new one.') })}
+          ${comboField({ name: 'collection', label: 'Collection', value: it.collection || '', options: cols, extra: ic('The collection / range this piece belongs to. Pick an existing one or add a new collection.') })}
 
           <label class="pm-lbl">Gross weight (grams) ${ic('The total weight of the piece in grams. Used to compute the total gross weight of stock.')}
             <input name="gross_weight" type="number" step="0.001" min="0" value="${it.gross_weight ?? ''}" />
@@ -186,9 +167,15 @@ function editorMarkup(it, sets = {}) {
             <input name="size" type="text" value="${esc(it.size)}" placeholder="e.g. H 6in × W 3in" />
           </label>
 
-          <label class="pm-lbl">Quantity ${ic('Number of identical pieces held under this SKU. Total gross weight = gross weight × quantity.')}
+          ${
+            isNew
+              ? `<label class="pm-lbl">Opening quantity ${ic('How many identical pieces you are adding under this SKU. This becomes the opening stock in the inventory ledger.')}
             <input name="quantity" type="number" step="1" min="1" value="${it.quantity ?? 1}" />
-          </label>
+          </label>`
+              : `<div class="pm-lbl">On hand
+            <div class="stk-onhand">${Number(it.quantity ?? 0)} pcs <span class="pm-field-note">Change via Restock / Sell / Return in the Inventory tab.</span></div>
+          </div>`
+          }
           <label class="pm-lbl">Design number ${ic('Auto-assigned on save. You can override it with a supplier/style design number if you have one.')}
             <input name="design_no" type="text" value="${esc(it.design_no)}" placeholder="${isNew ? 'Auto-assigned' : ''}" />
           </label>
@@ -223,14 +210,30 @@ function editorMarkup(it, sets = {}) {
           <span class="pm-upload-status" id="stkVideoStatus"></span>
         </div>
 
-        ${isNew ? '' : '<div id="stkInv"></div>'}
-
         <div class="pm-form-actions">
           <span class="pm-save-msg" id="stkMsg"></span>
           <button type="button" class="dash-btn dash-btn--ghost" id="stkCancel">Cancel</button>
           <button type="submit" class="dash-btn" id="stkSubmit">${isNew ? 'Add to stock' : 'Save changes'}</button>
         </div>
-      </form>
+      </form>`;
+
+  return `
+  <div class="pm-modal-backdrop" id="stkBackdrop">
+    <div class="pm-modal" role="dialog" aria-modal="true" aria-label="${isNew ? 'New stock item' : 'Stock item'}">
+      <div class="pm-modal-head">
+        <h2>${isNew ? 'New stock item' : esc(it.title || it.sku)}</h2>
+        <button class="pm-x" id="stkClose" type="button" aria-label="Close">✕</button>
+      </div>
+      ${
+        isNew
+          ? ''
+          : `<div class="stk-tabs" role="tablist">
+        <button type="button" class="stk-tab is-active" data-pane="inventory">Inventory</button>
+        <button type="button" class="stk-tab" data-pane="details">Details</button>
+      </div>
+      <div class="stk-pane" data-pane="inventory"><div id="stkInv"></div></div>`
+      }
+      ${detailsForm}
     </div>
   </div>`;
 }
@@ -628,157 +631,195 @@ export async function renderStock(root, session, opts = {}) {
     openCatalogue(chosen, { priceFor: (it) => priceMap[it.id] || '' });
   });
 
-  function openEditor(item) {
-    const holder = document.createElement('div');
-    holder.innerHTML = editorMarkup(item, sets);
-    document.body.appendChild(holder);
+  const openEditor = (item) => openStockItemEditor(item, { sets, dir, onSaved: reload });
 
-    const form = holder.querySelector('#stkForm');
-    const images = [...(item.images || [])];
-    const imagesWrap = holder.querySelector('#stkImages');
-    const imgStatus = holder.querySelector('#stkImgStatus');
+  reload();
+}
 
-    const close = () => holder.remove();
-    holder.querySelector('#stkClose').addEventListener('click', close);
-    holder.querySelector('#stkCancel').addEventListener('click', close);
-    holder.querySelector('#stkBackdrop').addEventListener('click', (e) => {
-      if (e.target.id === 'stkBackdrop') close();
-    });
-
-    const renderImages = () => {
-      imagesWrap.innerHTML = images.length
-        ? images
-            .map(
-              (url, i) => `
-        <div class="pm-img" data-i="${i}">
-          <img src="${esc(url)}" alt="" />
-          ${i === 0 ? '<span class="pm-img-main">Main</span>' : `<button type="button" class="pm-img-promote" data-promote="${i}">Make main</button>`}
-          <button type="button" class="pm-img-del" data-rm="${i}" aria-label="Remove photo">✕</button>
-        </div>`,
-            )
-            .join('')
-        : '<p class="pm-hint">No photos yet.</p>';
-      imagesWrap.querySelectorAll('[data-rm]').forEach((b) =>
-        b.addEventListener('click', () => {
-          images.splice(Number(b.dataset.rm), 1);
-          renderImages();
-        }),
-      );
-      imagesWrap.querySelectorAll('[data-promote]').forEach((b) =>
-        b.addEventListener('click', () => {
-          const i = Number(b.dataset.promote);
-          const [moved] = images.splice(i, 1);
-          images.unshift(moved);
-          renderImages();
-        }),
-      );
-    };
-    renderImages();
-
-    const handleImagePick = async (e) => {
-      const files = [...e.target.files];
-      if (!files.length) return;
-      imgStatus.textContent = `Uploading ${files.length} photo(s)…`;
-      try {
-        for (const file of files) {
-          const url = await uploadStockMedia(file);
-          images.push(url);
-          renderImages();
-        }
-        imgStatus.textContent = 'Uploaded ✓';
-      } catch (err) {
-        imgStatus.textContent = `Upload failed: ${err.message}`;
-      }
-      e.target.value = '';
-    };
-    holder.querySelector('#stkImgFile').addEventListener('change', handleImagePick);
-    holder.querySelector('#stkImgCam')?.addEventListener('change', handleImagePick);
-
-    const videoUrl = holder.querySelector('#stkVideoUrl');
-    const videoStatus = holder.querySelector('#stkVideoStatus');
-    const handleVideoPick = async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      videoStatus.textContent = 'Uploading video…';
-      try {
-        videoUrl.value = await uploadStockMedia(file);
-        videoStatus.textContent = 'Uploaded ✓';
-      } catch (err) {
-        videoStatus.textContent = `Upload failed: ${err.message}`;
-      }
-      e.target.value = '';
-    };
-    holder.querySelector('#stkVideoFile').addEventListener('change', handleVideoPick);
-    holder.querySelector('#stkVideoCam')?.addEventListener('change', handleVideoPick);
-
-    // ---- Inventory movements panel (existing items only) ----
-    const invHolder = holder.querySelector('#stkInv');
-    if (item.id && invHolder) {
-      mountInventoryPanel(invHolder, {
-        stockItemId: item.id,
-        productId: item.product_id,
-        itemLabel: `${item.title || item.sku} (${item.sku})`,
-        dir,
-        onSell: () => {
-          close();
-          openInvoiceModal({ kind: 'sale', prefill: [{ product_id: item.product_id }] });
-        },
-        onChange: () => reload(),
-      });
-    }
-
-    wireInfo(holder);
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const submit = holder.querySelector('#stkSubmit');
-      const msg = holder.querySelector('#stkMsg');
-      const fd = new FormData(e.target);
-      const num = (v) => (v === '' || v == null ? null : Number(v));
-
-      const payload = {
-        title: (fd.get('title') || '').trim() || null,
-        category: (fd.get('category') || '').trim(),
-        subcategory: (fd.get('subcategory') || '').trim() || null,
-        supplier: (fd.get('supplier') || '').trim() || null,
-        collection: (fd.get('collection') || '').trim() || null,
-        gross_weight: num(fd.get('gross_weight')),
-        size: (fd.get('size') || '').trim() || null,
-        quantity: Math.max(1, Math.round(num(fd.get('quantity')) ?? 1)),
-        design_no: (fd.get('design_no') || '').trim() || null,
-        notes: (fd.get('notes') || '').trim() || null,
-        images,
-        video_url: (fd.get('video_url') || '').trim() || null,
+// Standalone stock-item editor — usable from the Stock register and from the
+// Business dashboard ("Stock in"). Shows the inventory ledger by default (for
+// existing items) with a Details tab to edit the piece. `onSaved` is called
+// after a successful insert/update.
+export async function openStockItemEditor(item, { sets = null, dir = null, onSaved } = {}) {
+  // When invoked standalone (no sets/dir passed), load suggestions + directory.
+  if (!sets) {
+    try {
+      const all = await fetchStockItems();
+      sets = {
+        categories: mergeSuggestions(distinctValues(all, 'category'), STOCK_CATEGORIES),
+        subcategories: mergeSuggestions(distinctValues(all, 'subcategory'), STOCK_SUBCATEGORIES),
+        suppliers: distinctValues(all, 'supplier'),
+        collections: distinctValues(all, 'collection'),
       };
+    } catch {
+      sets = {};
+    }
+  }
+  if (!dir) {
+    dir = await fetchUserDirectory().catch(() => ({}));
+  }
 
-      if (!payload.category) {
-        msg.textContent = 'Category is required.';
-        msg.className = 'pm-save-msg is-error';
-        return;
+  const holder = document.createElement('div');
+  holder.innerHTML = editorMarkup(item, sets);
+  document.body.appendChild(holder);
+
+  const form = holder.querySelector('#stkForm');
+  const images = [...(item.images || [])];
+  const imagesWrap = holder.querySelector('#stkImages');
+  const imgStatus = holder.querySelector('#stkImgStatus');
+
+  const close = () => holder.remove();
+  holder.querySelector('#stkClose').addEventListener('click', close);
+  holder.querySelector('#stkCancel').addEventListener('click', close);
+  holder.querySelector('#stkBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'stkBackdrop') close();
+  });
+
+  // Inventory / Details tab switching (existing items only).
+  const panes = [...holder.querySelectorAll('.stk-pane')];
+  holder.querySelectorAll('.stk-tab').forEach((tab) =>
+    tab.addEventListener('click', () => {
+      holder.querySelectorAll('.stk-tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+      panes.forEach((p) => p.classList.toggle('is-hidden', p.dataset.pane !== tab.dataset.pane));
+    }),
+  );
+
+  wireCombos(form);
+
+  const renderImages = () => {
+    imagesWrap.innerHTML = images.length
+      ? images
+          .map(
+            (url, i) => `
+      <div class="pm-img" data-i="${i}">
+        <img src="${esc(url)}" alt="" />
+        ${i === 0 ? '<span class="pm-img-main">Main</span>' : `<button type="button" class="pm-img-promote" data-promote="${i}">Make main</button>`}
+        <button type="button" class="pm-img-del" data-rm="${i}" aria-label="Remove photo">✕</button>
+      </div>`,
+          )
+          .join('')
+      : '<p class="pm-hint">No photos yet.</p>';
+    imagesWrap.querySelectorAll('[data-rm]').forEach((b) =>
+      b.addEventListener('click', () => {
+        images.splice(Number(b.dataset.rm), 1);
+        renderImages();
+      }),
+    );
+    imagesWrap.querySelectorAll('[data-promote]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const i = Number(b.dataset.promote);
+        const [moved] = images.splice(i, 1);
+        images.unshift(moved);
+        renderImages();
+      }),
+    );
+  };
+  renderImages();
+
+  const handleImagePick = async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    imgStatus.textContent = `Uploading ${files.length} photo(s)…`;
+    try {
+      for (const file of files) {
+        const url = await uploadStockMedia(file);
+        images.push(url);
+        renderImages();
       }
+      imgStatus.textContent = 'Uploaded ✓';
+    } catch (err) {
+      imgStatus.textContent = `Upload failed: ${err.message}`;
+    }
+    e.target.value = '';
+  };
+  holder.querySelector('#stkImgFile').addEventListener('change', handleImagePick);
+  holder.querySelector('#stkImgCam')?.addEventListener('change', handleImagePick);
 
-      submit.disabled = true;
-      msg.textContent = 'Saving…';
-      msg.className = 'pm-save-msg';
-      try {
-        let saved;
-        if (item.id) {
-          await updateStockItem(item.id, payload);
-        } else {
-          saved = await insertStockItem(payload);
-        }
+  const videoUrl = holder.querySelector('#stkVideoUrl');
+  const videoStatus = holder.querySelector('#stkVideoStatus');
+  const handleVideoPick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    videoStatus.textContent = 'Uploading video…';
+    try {
+      videoUrl.value = await uploadStockMedia(file);
+      videoStatus.textContent = 'Uploaded ✓';
+    } catch (err) {
+      videoStatus.textContent = `Upload failed: ${err.message}`;
+    }
+    e.target.value = '';
+  };
+  holder.querySelector('#stkVideoFile').addEventListener('change', handleVideoPick);
+  holder.querySelector('#stkVideoCam')?.addEventListener('change', handleVideoPick);
+
+  // ---- Inventory movements panel (existing items only) ----
+  const invHolder = holder.querySelector('#stkInv');
+  if (item.id && invHolder) {
+    mountInventoryPanel(invHolder, {
+      stockItemId: item.id,
+      productId: item.product_id,
+      itemLabel: `${item.title || item.sku} (${item.sku})`,
+      dir,
+      onSell: () => {
         close();
-        await reload();
-        // Offer to print the tag right after adding a new item.
-        if (saved && confirm(`Added ${saved.sku} — it's now live in Products too. Print its tag now?`)) printTags([saved]);
-      } catch (err) {
-        console.error('[KPS] stock save failed:', err);
-        msg.textContent = `Save failed: ${err.message}`;
-        msg.className = 'pm-save-msg is-error';
-        submit.disabled = false;
-      }
+        openInvoiceModal({ kind: 'sale', prefill: [{ product_id: item.product_id }], onSaved });
+      },
+      onChange: () => onSaved && onSaved(),
     });
   }
 
-  reload();
+  wireInfo(holder);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submit = holder.querySelector('#stkSubmit');
+    const msg = holder.querySelector('#stkMsg');
+    const fd = new FormData(e.target);
+    const num = (v) => (v === '' || v == null ? null : Number(v));
+
+    const payload = {
+      title: (fd.get('title') || '').trim() || null,
+      category: (fd.get('category') || '').trim(),
+      subcategory: (fd.get('subcategory') || '').trim() || null,
+      supplier: (fd.get('supplier') || '').trim() || null,
+      collection: (fd.get('collection') || '').trim() || null,
+      gross_weight: num(fd.get('gross_weight')),
+      size: (fd.get('size') || '').trim() || null,
+      design_no: (fd.get('design_no') || '').trim() || null,
+      notes: (fd.get('notes') || '').trim() || null,
+      images,
+      video_url: (fd.get('video_url') || '').trim() || null,
+    };
+    // Quantity is only set on creation (the opening balance). For existing items
+    // it is managed exclusively through movements (restock / sale / return) so
+    // the ledger and on-hand stay in sync.
+    if (!item.id) payload.quantity = Math.max(1, Math.round(num(fd.get('quantity')) ?? 1));
+
+    if (!payload.category) {
+      msg.textContent = 'Category is required.';
+      msg.className = 'pm-save-msg is-error';
+      return;
+    }
+
+    submit.disabled = true;
+    msg.textContent = 'Saving…';
+    msg.className = 'pm-save-msg';
+    try {
+      let saved;
+      if (item.id) {
+        await updateStockItem(item.id, payload);
+      } else {
+        saved = await insertStockItem(payload);
+      }
+      close();
+      if (onSaved) await onSaved();
+      // Offer to print the tag right after adding a new item.
+      if (saved && confirm(`Added ${saved.sku} — it's now live in Products too. Print its tag now?`)) printTags([saved]);
+    } catch (err) {
+      console.error('[KPS] stock save failed:', err);
+      msg.textContent = `Save failed: ${err.message}`;
+      msg.className = 'pm-save-msg is-error';
+      submit.disabled = false;
+    }
+  });
 }

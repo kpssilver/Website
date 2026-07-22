@@ -1061,6 +1061,38 @@
 .stk-mv-run { font-size: 0.72rem; color: var(--a-text-dim); }
 .pm-modal--sm { max-width: 460px; width: min(94vw, 460px); }
 
+/* ---- Generic helpers ------------------------------------------------------- */
+.is-hidden { display: none !important; }
+
+/* ---- Select-or-add-new combo ---------------------------------------------- */
+.kps-combo { display: flex; flex-direction: column; gap: 0.35rem; }
+.kps-combo-sel, .kps-combo-new { background: rgba(255, 255, 255, 0.045); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 9px; padding: 0.55rem 0.65rem; font: inherit; font-size: 0.9rem; width: 100%; }
+.kps-combo-new { border-color: var(--a-rose); }
+
+/* ---- Stock editor tabs + on-hand ------------------------------------------ */
+.stk-tabs { display: flex; gap: 0.4rem; padding: 0 1.3rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--a-border); }
+.stk-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--a-text-dim); font: inherit; font-weight: 600; padding: 0.6rem 0.4rem; cursor: pointer; }
+.stk-tab.is-active { color: var(--a-rose-hi); border-bottom-color: var(--a-rose); }
+.stk-pane[data-pane="inventory"] { padding: 0 1.3rem 1.3rem; }
+.stk-onhand { font-weight: 700; color: var(--a-silver-hi); }
+.stk-onhand .pm-field-note { display: block; font-weight: 400; }
+
+/* ---- Business dashboard ---------------------------------------------------- */
+.biz-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.biz-daterow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.8rem; margin: 0 0 1rem; }
+.biz-date { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--a-text-dim); }
+.biz-date input { background: rgba(255, 255, 255, 0.045); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 8px; padding: 0.45rem 0.55rem; font: inherit; }
+.biz-date-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
+.biz-kpis { display: grid; grid-template-columns: repeat(4, 1fr); }
+.biz-kpis .stk-stat { flex: initial; }
+.stk-stat-sub { font-size: 0.68rem; color: var(--a-text-dim); }
+.biz-parties-top { margin-top: 1.6rem; }
+.pm-title--sm { font-size: 1.15rem; }
+@media (max-width: 720px) {
+  .biz-kpis { grid-template-columns: repeat(2, 1fr); }
+  .biz-date-presets { margin-left: 0; }
+}
+
 .pm-card--select { cursor: pointer; }
 .pm-card-check { position: absolute; top: 0.5rem; left: 0.5rem; z-index: 3; width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--a-border-hi); background: rgba(12, 12, 14, 0.8); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
 .pm-card--picked { border-color: var(--a-rose); box-shadow: inset 0 0 0 2px var(--a-rose); }

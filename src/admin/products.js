@@ -16,6 +16,7 @@ import { fetchUserDirectory, actorLabel } from '../data/business.js';
 import { fetchStockItemByProduct } from '../data/stock.js';
 import { openInvoiceModal } from './invoices.js';
 import { mountInventoryPanel } from './inventoryPanel.js';
+import { comboField, wireCombos } from './combo.js';
 import {
   fetchPricingSettings,
   computePrice,
@@ -201,7 +202,6 @@ function options(list, selected) {
 
 function editorMarkup(p) {
   const isNew = !p.id;
-  const categoryOptions = PRODUCT_CATEGORIES.map((c) => `<option value="${esc(c)}"></option>`).join('');
   const purityOptions = PURITY_OPTIONS.map((c) => `<option value="${esc(c)}"></option>`).join('');
 
   return `
@@ -220,10 +220,7 @@ function editorMarkup(p) {
             <input name="subtitle" type="text" value="${esc(p.subtitle)}" placeholder="e.g. Handcrafted 999 fine silver kuthuvilakku" />
           </label>
 
-          <label class="pm-lbl">Category ${ic('Groups the product under a shop filter and links it from the matching Collections card on the home page.')}
-            <input name="category" type="text" list="pmCats" value="${esc(p.category)}" placeholder="Choose or type" />
-            <datalist id="pmCats">${categoryOptions}</datalist>
-          </label>
+          ${comboField({ name: 'category', label: 'Category', value: p.category || '', options: PRODUCT_CATEGORIES, extra: ic('Groups the product under a shop filter and links it from the matching Collections card on the home page. Pick an existing one or add a new category.') })}
           <label class="pm-lbl">Silver purity ${ic('The silver grade shown to customers — 925 sterling or 999 fine. This is descriptive only; pricing always uses the live per-gram silver price × weight (100%).')}
             <select name="metal_purity">
               <option value="925" ${p.metal_purity !== '999' ? 'selected' : ''}>925 Sterling Silver</option>
@@ -690,6 +687,7 @@ export async function renderProducts(root, session, opts = {}) {
     };
 
     wireInfo(holder);
+    wireCombos(form);
     form.addEventListener('input', refresh);
     form.addEventListener('change', refresh);
     refresh();

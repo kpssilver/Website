@@ -11,15 +11,26 @@ import {
   deleteParty,
   createPayment,
   fetchInvoicesByParty,
+  fetchInvoicesRange,
   fetchPayments,
   fetchUserDirectory,
   actorLabel,
   invoiceKind,
   money,
 } from '../data/business.js';
+import { openInvoiceModal } from './invoices.js';
+import { openStockItemEditor } from './stock.js';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// First day of the current month → today (yyyy-mm-dd), the default range.
+function defaultRange() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { from: iso(from), to: iso(now) };
 }
 
 function partyEditor(party) {
@@ -92,13 +103,36 @@ function paymentEditor(party) {
 }
 
 export async function renderBusiness(root, session) {
+  const range = defaultRange();
   root.innerHTML = `
   <div class="pm">
-    <div class="stk-summary" id="bizSummary"></div>
     <div class="pm-top">
       <div>
-        <h2 class="pm-title">Business</h2>
-        <p class="pm-lede">Customers, sellers and their receivables / payables.</p>
+        <h2 class="pm-title">Business dashboard</h2>
+        <p class="pm-lede">Sales, returns, receivables &amp; payables — with customers and sellers.</p>
+      </div>
+      <div class="biz-actions">
+        <button class="dash-btn" id="bizNewSale" type="button">+ New sale</button>
+        <button class="dash-btn dash-btn--ghost" id="bizNewReturn" type="button">+ Return</button>
+        <button class="dash-btn dash-btn--ghost" id="bizStockIn" type="button">+ Stock in</button>
+      </div>
+    </div>
+
+    <div class="biz-daterow">
+      <label class="biz-date">From <input type="date" id="bizFrom" value="${range.from}" /></label>
+      <label class="biz-date">To <input type="date" id="bizTo" value="${range.to}" /></label>
+      <div class="biz-date-presets">
+        <button type="button" class="shop-chip" data-preset="month">This month</button>
+        <button type="button" class="shop-chip" data-preset="30">Last 30 days</button>
+        <button type="button" class="shop-chip" data-preset="year">This year</button>
+      </div>
+    </div>
+
+    <div class="stk-summary biz-kpis" id="bizSummary"></div>
+
+    <div class="pm-top biz-parties-top">
+      <div>
+        <h3 class="pm-title pm-title--sm">Customers &amp; sellers</h3>
       </div>
       <div class="biz-add-btns">
         <button class="dash-btn dash-btn--ghost" id="bizAddCustomer" type="button">+ Customer</button>
@@ -115,16 +149,22 @@ export async function renderBusiness(root, session) {
 
   const region = root.querySelector('#bizListRegion');
   const summary = root.querySelector('#bizSummary');
+  const fromInput = root.querySelector('#bizFrom');
+  const toInput = root.querySelector('#bizTo');
   let balances = [];
   let parties = [];
+  let invoices = [];
   let dir = {};
   let filter = '';
 
   const reload = async () => {
     try {
-      [balances, parties, dir] = await Promise.all([
+      const from = fromInput.value || null;
+      const to = toInput.value || null;
+      [balances, parties, invoices, dir] = await Promise.all([
         fetchPartyBalances(),
         fetchParties(),
+        fetchInvoicesRange({ from, to }),
         fetchUserDirectory(),
       ]);
       renderSummary();
@@ -134,19 +174,31 @@ export async function renderBusiness(root, session) {
     }
   };
 
+  const sumTotals = (kinds) =>
+    invoices.filter((i) => kinds.includes(i.kind)).reduce((s, i) => s + Number(i.total || 0), 0);
+
   const renderSummary = () => {
+    const sales = sumTotals(['sale']);
+    const returns = sumTotals(['sale_return', 'purchase_return']);
     const receivable = balances
       .filter((b) => b.kind === 'customer')
       .reduce((s, b) => s + Math.max(0, Number(b.balance)), 0);
     const payable = balances
       .filter((b) => b.kind === 'seller')
       .reduce((s, b) => s + Math.max(0, Number(b.balance)), 0);
+    const saleCount = invoices.filter((i) => i.kind === 'sale').length;
+    const retCount = invoices.filter((i) => /return/.test(i.kind)).length;
     summary.innerHTML = `
-      <button type="button" class="stk-stat stk-stat--hero stk-stat--click" data-drill="receivable"><span class="stk-stat-lbl">Total receivable ›</span><span class="stk-stat-val">${money(receivable)}</span></button>
-      <button type="button" class="stk-stat stk-stat--click" data-drill="payable"><span class="stk-stat-lbl">Total payable ›</span><span class="stk-stat-val">${money(payable)}</span></button>
-      <div class="stk-stat"><span class="stk-stat-lbl">Parties</span><span class="stk-stat-val">${parties.length}</span></div>`;
+      <button type="button" class="stk-stat stk-stat--hero stk-stat--click" data-drill="sales"><span class="stk-stat-lbl">Total sales ›</span><span class="stk-stat-val">${money(sales)}</span><span class="stk-stat-sub">${saleCount} invoice(s)</span></button>
+      <button type="button" class="stk-stat stk-stat--click" data-drill="returns"><span class="stk-stat-lbl">Returns ›</span><span class="stk-stat-val">${money(returns)}</span><span class="stk-stat-sub">${retCount} note(s)</span></button>
+      <button type="button" class="stk-stat stk-stat--click" data-drill="receivable"><span class="stk-stat-lbl">Receivable ›</span><span class="stk-stat-val">${money(receivable)}</span><span class="stk-stat-sub">all-time</span></button>
+      <button type="button" class="stk-stat stk-stat--click" data-drill="payable"><span class="stk-stat-lbl">Payable ›</span><span class="stk-stat-val">${money(payable)}</span><span class="stk-stat-sub">all-time</span></button>`;
     summary.querySelectorAll('[data-drill]').forEach((b) =>
-      b.addEventListener('click', () => openDrill(b.dataset.drill)),
+      b.addEventListener('click', () => {
+        const d = b.dataset.drill;
+        if (d === 'sales' || d === 'returns') openInvoiceDrill(d);
+        else openDrill(d);
+      }),
     );
   };
 
@@ -257,6 +309,30 @@ export async function renderBusiness(root, session) {
     root.querySelectorAll('#bizFilter .shop-chip').forEach((c) => c.classList.toggle('is-active', c === btn));
     renderList();
   });
+
+  // Date range + presets.
+  fromInput.addEventListener('change', reload);
+  toInput.addEventListener('change', reload);
+  root.querySelector('.biz-date-presets').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-preset]');
+    if (!btn) return;
+    const now = new Date();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    if (btn.dataset.preset === 'month') {
+      fromInput.value = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+    } else if (btn.dataset.preset === '30') {
+      fromInput.value = iso(new Date(now.getTime() - 29 * 86400000));
+    } else if (btn.dataset.preset === 'year') {
+      fromInput.value = iso(new Date(now.getFullYear(), 0, 1));
+    }
+    toInput.value = iso(now);
+    reload();
+  });
+
+  // Quick actions.
+  root.querySelector('#bizNewSale').addEventListener('click', () => openInvoiceModal({ kind: 'sale', onSaved: reload }));
+  root.querySelector('#bizNewReturn').addEventListener('click', () => openInvoiceModal({ kind: 'sale_return', onSaved: reload }));
+  root.querySelector('#bizStockIn').addEventListener('click', () => openStockItemEditor({ images: [] }, { onSaved: reload }));
 
   root.querySelector('#bizAddCustomer').addEventListener('click', () => openParty({ kind: 'customer', active: true }));
   root.querySelector('#bizAddSeller').addEventListener('click', () => openParty({ kind: 'seller', active: true }));
@@ -377,6 +453,45 @@ export async function renderBusiness(root, session) {
       if (e.target.matches('[data-modal]')) close();
     });
     return { holder, body: holder.querySelector('[data-body]'), close };
+  }
+
+  // KPI drill-down: the sale / return invoices behind the totals for the range.
+  function openInvoiceDrill(which) {
+    const isSales = which === 'sales';
+    const rows = invoices
+      .filter((i) => (isSales ? i.kind === 'sale' : /return/.test(i.kind)))
+      .sort((a, b) => new Date(b.invoice_date) - new Date(a.invoice_date));
+    const total = rows.reduce((s, i) => s + Number(i.total || 0), 0);
+    const { body } = openModalShell(
+      `${isSales ? 'Sales' : 'Returns'} · ${fromInput.value} → ${toInput.value}`,
+    );
+    body.innerHTML = `
+      <p class="biz-drill-total">${rows.length} invoice(s) · ${money(total)}</p>
+      ${
+        rows.length
+          ? `<ul class="biz-tx-list">${rows
+              .map((i) => {
+                const k = invoiceKind(i.kind);
+                const due = Number(i.total) - Number(i.amount_paid);
+                return `<li class="biz-tx" data-party="${i.party_id || ''}">
+                  <div class="biz-tx-main">
+                    <span class="pm-badge pm-badge--sku">${esc(i.invoice_no)}</span>
+                    <span class="biz-tx-t">${esc(k.short)}</span>
+                    <span class="biz-tx-sub">${esc(i.party?.name || '—')} · ${esc(i.invoice_date)} · by ${esc(actorLabel(dir, i.created_by))}${due > 0.005 ? ` · Due ${money(due)}` : ''}</span>
+                  </div>
+                  <div class="biz-tx-amt"><span class="biz-tx-delta is-pos">${money(i.total)}</span></div>
+                </li>`;
+              })
+              .join('')}</ul>`
+          : `<p class="pm-hint">No ${isSales ? 'sales' : 'returns'} in this date range.</p>`
+      }`;
+    body.querySelectorAll('[data-party]').forEach((li) =>
+      li.addEventListener('click', () => {
+        const pid = li.dataset.party;
+        const party = parties.find((p) => p.id === pid);
+        if (party) openTransactions(party);
+      }),
+    );
   }
 
   // KPI drill-down: who owes us (receivable) / who we owe (payable).
