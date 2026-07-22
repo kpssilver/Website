@@ -79,7 +79,7 @@ export function renderApp(root, session, profile, onSignOut) {
     else if (nm === 'products') renderProducts(view, session, { isAdmin });
     else if (nm === 'stock') renderStock(view, session, { isAdmin });
     else if (nm === 'billing') renderInvoices(view, session);
-    else if (nm === 'business') renderBusiness(view, session);
+    else if (nm === 'business') renderBusiness(view, session, { isAdmin });
     else if (nm === 'shop') renderShopActivity(view, session);
     else if (nm === 'staff') renderStaff(view, session);
     else renderInsights(view, session);

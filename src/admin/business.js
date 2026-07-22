@@ -103,14 +103,17 @@ function paymentEditor(party) {
   </div>`;
 }
 
-export async function renderBusiness(root, session) {
+export async function renderBusiness(root, session, opts = {}) {
+  // The sales / returns / receivable / payable KPIs (and their date filter) are
+  // admin-only. Staff still manage parties and can create sales / returns.
+  const isAdmin = opts.isAdmin !== false;
   const range = defaultRange();
   root.innerHTML = `
   <div class="pm">
     <div class="pm-top">
       <div>
-        <h2 class="pm-title">Business dashboard</h2>
-        <p class="pm-lede">Sales, returns, receivables &amp; payables — with customers and sellers.</p>
+        <h2 class="pm-title">Business${isAdmin ? ' dashboard' : ''}</h2>
+        <p class="pm-lede">${isAdmin ? 'Sales, returns, receivables &amp; payables — with customers and sellers.' : 'Customers, sellers, sales &amp; returns.'}</p>
       </div>
       <div class="biz-actions">
         <button class="dash-btn" id="bizNewSale" type="button">+ New sale</button>
@@ -119,7 +122,9 @@ export async function renderBusiness(root, session) {
       </div>
     </div>
 
-    <div class="biz-daterow">
+    ${
+      isAdmin
+        ? `<div class="biz-daterow">
       <label class="biz-date">From <input type="date" id="bizFrom" value="${range.from}" /></label>
       <label class="biz-date">To <input type="date" id="bizTo" value="${range.to}" /></label>
       <div class="biz-date-presets">
@@ -129,7 +134,9 @@ export async function renderBusiness(root, session) {
       </div>
     </div>
 
-    <div class="stk-summary biz-kpis" id="bizSummary"></div>
+    <div class="stk-summary biz-kpis" id="bizSummary"></div>`
+        : ''
+    }
 
     <div class="pm-top biz-parties-top">
       <div>
@@ -160,12 +167,12 @@ export async function renderBusiness(root, session) {
 
   const reload = async () => {
     try {
-      const from = fromInput.value || null;
-      const to = toInput.value || null;
+      const from = fromInput?.value || null;
+      const to = toInput?.value || null;
       [balances, parties, invoices, dir] = await Promise.all([
         fetchPartyBalances(),
         fetchParties(),
-        fetchInvoicesRange({ from, to }),
+        isAdmin ? fetchInvoicesRange({ from, to }) : Promise.resolve([]),
         fetchUserDirectory(),
       ]);
       renderSummary();
@@ -179,6 +186,7 @@ export async function renderBusiness(root, session) {
     invoices.filter((i) => kinds.includes(i.kind)).reduce((s, i) => s + Number(i.total || 0), 0);
 
   const renderSummary = () => {
+    if (!summary) return; // KPIs are admin-only
     const sales = sumTotals(['sale']);
     const returns = sumTotals(['sale_return', 'purchase_return']);
     // A customer normally owes us (receivable); if their balance is negative we
@@ -329,24 +337,26 @@ export async function renderBusiness(root, session) {
     renderList();
   });
 
-  // Date range + presets.
-  fromInput.addEventListener('change', reload);
-  toInput.addEventListener('change', reload);
-  root.querySelector('.biz-date-presets').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-preset]');
-    if (!btn) return;
-    const now = new Date();
-    const iso = (d) => d.toISOString().slice(0, 10);
-    if (btn.dataset.preset === 'month') {
-      fromInput.value = iso(new Date(now.getFullYear(), now.getMonth(), 1));
-    } else if (btn.dataset.preset === '30') {
-      fromInput.value = iso(new Date(now.getTime() - 29 * 86400000));
-    } else if (btn.dataset.preset === 'year') {
-      fromInput.value = iso(new Date(now.getFullYear(), 0, 1));
-    }
-    toInput.value = iso(now);
-    reload();
-  });
+  // Date range + presets (admin-only controls).
+  if (isAdmin && fromInput && toInput) {
+    fromInput.addEventListener('change', reload);
+    toInput.addEventListener('change', reload);
+    root.querySelector('.biz-date-presets').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-preset]');
+      if (!btn) return;
+      const now = new Date();
+      const iso = (d) => d.toISOString().slice(0, 10);
+      if (btn.dataset.preset === 'month') {
+        fromInput.value = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+      } else if (btn.dataset.preset === '30') {
+        fromInput.value = iso(new Date(now.getTime() - 29 * 86400000));
+      } else if (btn.dataset.preset === 'year') {
+        fromInput.value = iso(new Date(now.getFullYear(), 0, 1));
+      }
+      toInput.value = iso(now);
+      reload();
+    });
+  }
 
   // Quick actions.
   root.querySelector('#bizNewSale').addEventListener('click', () => openInvoiceModal({ kind: 'sale', onSaved: reload }));
