@@ -12,6 +12,10 @@
 // =============================================================================
 import { supabase } from '../config/supabase.js';
 import { fetchProducts, PRODUCT_CATEGORIES, formatWeight, firstImage } from '../data/products.js';
+import { fetchUserDirectory, actorLabel } from '../data/business.js';
+import { fetchStockItemByProduct } from '../data/stock.js';
+import { openInvoiceModal } from './invoices.js';
+import { mountInventoryPanel } from './inventoryPanel.js';
 import {
   fetchPricingSettings,
   computePrice,
@@ -25,7 +29,19 @@ import {
 const MEDIA_BUCKET = 'product-media';
 const PURITY_OPTIONS = ['Handcrafted', 'Hallmarked', 'Antique finish', 'Oxidised finish'];
 
+// Coarse mobile / touch detection — surfaces a live-camera capture button
+// beside the gallery picker on phones and tablets.
+const IS_MOBILE =
+  typeof navigator !== 'undefined' &&
+  (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints || 0) > 1);
+
 let pricingSettings = { ...DEFAULT_PRICING };
+let userDir = {};
+
+// Edit / delete tool icons (top-right of each card).
+const EDIT_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2zM4 6h16v1H4V6z"/></svg>';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -146,8 +162,13 @@ function listMarkup(products) {
         : `<div class="pm-thumb pm-thumb--empty">No image</div>`;
       const stock = p.in_stock ? '<span class="pm-badge pm-badge--in">In stock</span>' : '<span class="pm-badge pm-badge--out">Sold out</span>';
       const feat = p.featured ? '<span class="pm-badge pm-badge--feat">Featured</span>' : '';
+      const who = p.updated_by || p.created_by;
       return `
-      <article class="pm-card" data-id="${p.id}">
+      <article class="pm-card pm-card--click" data-open="${p.id}" tabindex="0" role="button" aria-label="Edit ${esc(p.title)}">
+        <div class="pm-card-tools">
+          <button class="pm-tool" data-edit="${p.id}" type="button" title="Edit" aria-label="Edit">${EDIT_ICON}</button>
+          <button class="pm-tool pm-tool--danger" data-del="${p.id}" type="button" title="Delete" aria-label="Delete">${DEL_ICON}</button>
+        </div>
         ${thumb}
         <div class="pm-card-body">
           <div class="pm-card-head">
@@ -160,11 +181,11 @@ function listMarkup(products) {
             <span>${esc(priceLabel(p, pricingSettings))}</span>
             ${p.weight_grams ? `<span>${esc(formatWeight(p))}</span>` : ''}
             <span>${(p.images || []).length} image(s)</span>
+            ${who ? `<span>Updated by ${esc(actorLabel(userDir, who))}</span>` : ''}
           </div>
-        </div>
-        <div class="pm-card-actions">
-          <button class="dash-btn dash-btn--ghost" data-edit="${p.id}" type="button">Edit</button>
-          <button class="dash-btn dash-btn--danger" data-del="${p.id}" type="button">Delete</button>
+          <div class="pm-card-actions">
+            <button class="dash-btn" data-sell="${p.id}" type="button">Sell item</button>
+          </div>
         </div>
       </article>`;
     })
@@ -282,11 +303,12 @@ function editorMarkup(p) {
         <div class="pm-media">
           <div class="pm-media-head">
             <h3>Images</h3>
-            <label class="cm-upload-btn">
-              <input type="file" accept="image/*" multiple id="pmImgFile" hidden /> Add images
-            </label>
+            <div class="pm-media-btns">
+              <label class="cm-upload-btn"><input type="file" accept="image/*" multiple id="pmImgFile" hidden /> ${IS_MOBILE ? 'Gallery' : 'Add images'}</label>
+              ${IS_MOBILE ? '<label class="cm-upload-btn cm-upload-btn--cam"><input type="file" accept="image/*" capture="environment" id="pmImgCam" hidden /> 📷 Take photo</label>' : ''}
+            </div>
           </div>
-          <p class="pm-hint">The first image is the main photo. Use “Make main” to promote any image.</p>
+          <p class="pm-hint">The first image is the main photo. Use “Make main” to promote any image.${IS_MOBILE ? ' “Take photo” opens your camera.' : ''}</p>
           <div class="pm-images" id="pmImages"></div>
           <span class="pm-upload-status" id="pmImgStatus"></span>
         </div>
@@ -294,13 +316,16 @@ function editorMarkup(p) {
         <div class="pm-media">
           <div class="pm-media-head">
             <h3>Video</h3>
-            <label class="cm-upload-btn">
-              <input type="file" accept="video/*" id="pmVideoFile" hidden /> Upload video
-            </label>
+            <div class="pm-media-btns">
+              <label class="cm-upload-btn"><input type="file" accept="video/*" id="pmVideoFile" hidden /> ${IS_MOBILE ? 'Gallery' : 'Upload video'}</label>
+              ${IS_MOBILE ? '<label class="cm-upload-btn cm-upload-btn--cam"><input type="file" accept="video/*" capture="environment" id="pmVideoCam" hidden /> 🎥 Record</label>' : ''}
+            </div>
           </div>
           <input name="video_url" type="text" id="pmVideoUrl" value="${esc(p.video_url)}" placeholder="Paste a video URL (YouTube/MP4) or upload a file" />
           <span class="pm-upload-status" id="pmVideoStatus"></span>
         </div>
+
+        ${p.id ? '<div id="pmInv"></div>' : ''}
 
         <div class="pm-flags">
           <label class="pm-check"><input type="checkbox" name="in_stock" ${p.in_stock ? 'checked' : ''} /> In stock ${ic('Untick to mark the piece as sold out. It stays visible in the shop with a "Sold out" badge.')}</label>
@@ -437,14 +462,37 @@ export async function renderProducts(root, session, opts = {}) {
   };
 
   const wireList = (products) => {
+    const openFor = (id) => {
+      const product = products.find((x) => x.id === id);
+      if (product) openEditor({ ...product, images: [...(product.images || [])] });
+    };
+    region.querySelectorAll('.pm-card--click').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        openFor(card.dataset.open);
+      });
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openFor(card.dataset.open);
+        }
+      });
+    });
     region.querySelectorAll('[data-edit]').forEach((btn) =>
-      btn.addEventListener('click', () => {
-        const product = products.find((x) => x.id === btn.dataset.edit);
-        if (product) openEditor({ ...product, images: [...(product.images || [])] });
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFor(btn.dataset.edit);
+      }),
+    );
+    region.querySelectorAll('[data-sell]').forEach((btn) =>
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openInvoiceModal({ kind: 'sale', prefill: [{ product_id: btn.dataset.sell }] });
       }),
     );
     region.querySelectorAll('[data-del]').forEach((btn) =>
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const product = products.find((x) => x.id === btn.dataset.del);
         if (!product) return;
         if (!confirm(`Delete “${product.title}”? This cannot be undone.`)) return;
@@ -513,7 +561,7 @@ export async function renderProducts(root, session, opts = {}) {
     };
     renderImages();
 
-    holder.querySelector('#pmImgFile').addEventListener('change', async (e) => {
+    const handleImagePick = async (e) => {
       const files = [...e.target.files];
       if (!files.length) return;
       imgStatus.textContent = `Uploading ${files.length} image(s)…`;
@@ -528,12 +576,13 @@ export async function renderProducts(root, session, opts = {}) {
         imgStatus.textContent = `Upload failed: ${err.message}`;
       }
       e.target.value = '';
-    });
+    };
+    holder.querySelector('#pmImgFile').addEventListener('change', handleImagePick);
+    holder.querySelector('#pmImgCam')?.addEventListener('change', handleImagePick);
 
-    const videoFile = holder.querySelector('#pmVideoFile');
     const videoUrl = holder.querySelector('#pmVideoUrl');
     const videoStatus = holder.querySelector('#pmVideoStatus');
-    videoFile.addEventListener('change', async (e) => {
+    const handleVideoPick = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       videoStatus.textContent = 'Uploading video…';
@@ -544,7 +593,34 @@ export async function renderProducts(root, session, opts = {}) {
         videoStatus.textContent = `Upload failed: ${err.message}`;
       }
       e.target.value = '';
-    });
+    };
+    holder.querySelector('#pmVideoFile').addEventListener('change', handleVideoPick);
+    holder.querySelector('#pmVideoCam')?.addEventListener('change', handleVideoPick);
+
+    // ---- Inventory movements panel (existing products linked to stock) ----
+    const invHolder = holder.querySelector('#pmInv');
+    if (product.id && invHolder) {
+      fetchStockItemByProduct(product.id)
+        .then((stock) => {
+          if (!stock) {
+            invHolder.innerHTML =
+              '<div class="stk-inv"><div class="pm-media-head"><h3>Inventory &amp; movements</h3></div><p class="pm-hint">This product isn’t linked to a stock item, so there’s no movement ledger. Add it from the Stock register to track opening, restock, sales and returns.</p></div>';
+            return;
+          }
+          mountInventoryPanel(invHolder, {
+            stockItemId: stock.id,
+            productId: product.id,
+            itemLabel: `${product.title} (${stock.sku})`,
+            dir: userDir,
+            onSell: () => {
+              close();
+              openInvoiceModal({ kind: 'sale', prefill: [{ product_id: product.id }] });
+            },
+            onChange: () => reload(),
+          });
+        })
+        .catch(() => {});
+    }
 
     // Reads current form values into a product-shaped object for live preview.
     const readForm = () => {
@@ -691,6 +767,7 @@ export async function renderProducts(root, session, opts = {}) {
   } catch {
     pricingSettings = { ...DEFAULT_PRICING };
   }
+  userDir = await fetchUserDirectory();
   renderMaster();
   reload();
 }

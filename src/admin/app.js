@@ -10,15 +10,26 @@ import { renderContent } from './content.js';
 import { renderProducts } from './products.js';
 import { renderShopActivity, disposeShopActivity } from './shop-activity.js';
 import { renderStaff } from './staff.js';
+import { renderStock } from './stock.js';
+import { renderInvoices } from './invoices.js';
+import { renderBusiness } from './business.js';
 
 const ADMIN_TABS = [
   { id: 'insights', label: 'Insights' },
   { id: 'shop', label: 'Shop activity' },
   { id: 'products', label: 'Products' },
+  { id: 'stock', label: 'Stock' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'business', label: 'Business' },
   { id: 'content', label: 'Content' },
   { id: 'staff', label: 'Staff' },
 ];
-const STAFF_TABS = [{ id: 'products', label: 'Products' }];
+const STAFF_TABS = [
+  { id: 'products', label: 'Products' },
+  { id: 'stock', label: 'Stock' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'business', label: 'Business' },
+];
 
 function shell(name, role, tabs) {
   const roleLabel = role === 'admin' ? 'Super Admin' : 'Staff';
@@ -66,6 +77,9 @@ export function renderApp(root, session, profile, onSignOut) {
     view.innerHTML = '';
     if (nm === 'content') renderContent(view, session);
     else if (nm === 'products') renderProducts(view, session, { isAdmin });
+    else if (nm === 'stock') renderStock(view, session, { isAdmin });
+    else if (nm === 'billing') renderInvoices(view, session);
+    else if (nm === 'business') renderBusiness(view, session);
     else if (nm === 'shop') renderShopActivity(view, session);
     else if (nm === 'staff') renderStaff(view, session);
     else renderInsights(view, session);
