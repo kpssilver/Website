@@ -22,6 +22,42 @@ function thumbUrl(url, width = 800) {
   return base + (base.includes('?') ? '&' : '?') + `width=${width}&height=${width}&resize=contain&quality=80`;
 }
 
+// Fetch an image and return it as a data URL (so html2canvas can rasterise it
+// without tainting the canvas). Resolves null on failure.
+async function fetchAsDataUrl(url) {
+  const res = await fetch(url, { mode: 'cors' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Swap every remote <img> in `root` for an inlined data URL. Tries the resized
+// thumbnail first, then the original (data-full); leaves the tag untouched if
+// both fail (html2canvas useCORS may still capture it).
+async function inlineImages(root) {
+  const imgs = [...root.querySelectorAll('img')];
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute('src') || '';
+      if (!src || src.startsWith('data:')) return;
+      const candidates = [src, img.dataset.full].filter((u, i, a) => u && a.indexOf(u) === i);
+      for (const url of candidates) {
+        try {
+          img.src = await fetchAsDataUrl(url);
+          return;
+        } catch {
+          /* try next candidate */
+        }
+      }
+    }),
+  );
+}
+
 // Detail fields shown under each image. `on` = visible by default.
 const FIELDS = [
   { key: 'title', label: 'Name', on: true },
@@ -161,8 +197,8 @@ export function openCatalogue(items, { priceFor } = {}) {
           </section>
 
           <div class="cat-actions">
-            <button class="dash-btn" id="catPrint" type="button">Print / Save as PDF</button>
-            <p class="cat-hint">Save as PDF, then share on WhatsApp or email.</p>
+            <button class="dash-btn" id="catPrint" type="button">Save as PDF</button>
+            <p class="cat-hint">Downloads a PDF you can share on WhatsApp or email.</p>
           </div>
         </aside>
 
@@ -290,52 +326,70 @@ export function openCatalogue(items, { priceFor } = {}) {
     if (!grid.querySelector('.cat-item')) close();
   });
 
-  // ---- Print / Save as PDF ----
+  // ---- Save as PDF (client-side download — no printer dialog) ----
   holder.querySelector('#catPrint').addEventListener('click', async () => {
     const printBtn = holder.querySelector('#catPrint');
+    const orig = printBtn.textContent;
     printBtn.disabled = true;
-    printBtn.textContent = 'Preparing…';
-    document.querySelectorAll('.print-sheet').forEach((n) => n.remove());
+    printBtn.textContent = 'Preparing PDF…';
 
-    // Clone the live preview (keeps hidden fields, layout + inline edits), then
-    // strip editing affordances so it prints clean.
-    const sheet = document.createElement('div');
-    sheet.className = 'print-sheet cat-print';
-    const clone = preview.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
-    clone.querySelectorAll('.cat-item-rm').forEach((el) => el.remove());
-    // Force every image to fetch now (preview versions may still be lazy).
-    clone.querySelectorAll('img').forEach((im) => im.removeAttribute('loading'));
-    sheet.appendChild(clone);
-    document.body.appendChild(sheet);
+    let stage;
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
 
-    // Images are already loaded in the preview (same src → cached), so this is
-    // near-instant. Cap the wait so a slow/stalled image never blocks printing.
-    const imgs = [...sheet.querySelectorAll('img')];
-    const ready = Promise.all(
-      imgs.map((img) =>
-        img.complete && img.naturalWidth
-          ? Promise.resolve()
-          : new Promise((res) => {
-              img.onload = res;
-              img.onerror = res;
-            }),
-      ),
-    );
-    await Promise.race([ready, new Promise((res) => setTimeout(res, 2500))]);
+      // Build an off-screen A4-width copy of the live preview (keeps hidden
+      // fields, layout + inline edits), stripped of editing affordances.
+      const PX_W = 794; // ≈ A4 width at 96dpi
+      stage = document.createElement('div');
+      stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${PX_W}px;background:#fff;z-index:-1;`;
+      const clone = preview.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.maxWidth = 'none';
+      clone.style.width = `${PX_W}px`;
+      clone.style.margin = '0';
+      clone.style.boxShadow = 'none';
+      clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+      clone.querySelectorAll('.cat-item-rm').forEach((el) => el.remove());
+      clone.querySelectorAll('img').forEach((im) => im.removeAttribute('loading'));
+      stage.appendChild(clone);
+      document.body.appendChild(stage);
 
-    const cleanup = () => {
-      sheet.remove();
-      window.removeEventListener('afterprint', cleanup);
+      // Inline remote images as data URLs so the canvas isn't tainted by CORS.
+      await inlineImages(clone);
+
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+      // Paint the tall canvas across as many A4 pages as needed.
+      let position = 0;
+      let remaining = imgH;
+      pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
+      remaining -= pageH;
+      while (remaining > 0) {
+        position -= pageH;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
+        remaining -= pageH;
+      }
+      pdf.save(`KPS-Silver-Catalogue-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      // Fall back to the browser's print → "Save as PDF" if anything fails.
+      alert(`Could not build the PDF automatically (${err?.message || err}). Opening the print dialog so you can choose “Save as PDF”.`);
+      window.print();
+    } finally {
+      if (stage) stage.remove();
       printBtn.disabled = false;
-      printBtn.textContent = 'Print / Save as PDF';
-    };
-    window.addEventListener('afterprint', cleanup);
-    window.print();
-    // Safety: restore the button even if afterprint doesn't fire.
-    setTimeout(() => {
-      if (printBtn.disabled) cleanup();
-    }, 1500);
+      printBtn.textContent = orig;
+    }
   });
 }
