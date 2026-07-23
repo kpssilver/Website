@@ -414,7 +414,9 @@ function saveTagFields(fields) {
 // talks to over a websocket; it streams the raw TSPL (which itself sets
 // SIZE 92mm,15mm) straight to the printer by name, with no dialog and the exact
 // label size on Windows *and* Mac. Requires QZ Tray installed + running.
-const QZ_SRC = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
+// The client library is self-hosted (public/qz-tray.js) so it works on any
+// machine even with no internet / when a CDN is blocked.
+const QZ_SRC = '/qz-tray.js';
 const QZ_PRINTER_KEY = 'kps_label_printer';
 
 let qzScriptPromise = null;
@@ -712,8 +714,8 @@ function openTagPrintDialog(items) {
       const code = String(err?.message || '');
       setNote(
         code === 'qz-load'
-          ? 'Could not load QZ Tray. Check your internet, or use the system print dialog.'
-          : 'QZ Tray helper isn’t running. Install it from qz.io and open it to print directly — or use the system print dialog below (choose your label paper size).',
+          ? 'Could not load the QZ helper script. Refresh the page, or use the system print dialog.'
+          : 'QZ Tray helper isn’t running. Install it once from qz.io and open it to print directly — or use the system print dialog below (choose your label paper size).',
         'warn',
       );
     }
