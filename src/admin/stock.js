@@ -607,45 +607,141 @@ async function webusbPrint(bytes, { pick } = {}) {
   return usbName(device);
 }
 
-const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
+// Dots per mm at 203 dpi (8 dots/mm) — the native resolution of the label head.
+const DPMM = 8;
 
-// All X coordinates stay inside the left 52mm panel (0–416 dots at 8 dots/mm);
-// the remaining ~40mm (the string/tail) is left blank.
-function buildTspl(items, fields, copies) {
+// Load the KPS logo as a solid-BLACK mark on transparent bg (the favicon has a
+// dark box + silver gradient, which would print as an ugly black block). We
+// strip the background rect and force the mark to #000 so it rasterises to a
+// clean black-on-white logo. Cached after first load.
+let tagLogoPromise = null;
+function loadTagLogo() {
+  if (tagLogoPromise) return tagLogoPromise;
+  tagLogoPromise = (async () => {
+    const res = await fetch('/favicon.svg');
+    let svg = await res.text();
+    svg = svg.replace(/<rect[^>]*\/>/i, ''); // remove dark background box
+    svg = svg.replace(/fill="url\(#m\)"/gi, 'fill="#000"'); // mark -> solid black
+    const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    return img;
+  })().catch(() => null);
+  return tagLogoPromise;
+}
+
+function fitText(ctx, text, maxW) {
+  let t = String(text ?? '');
+  if (ctx.measureText(t).width <= maxW) return t;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+
+// Renders one tag's printable 52mm × 15mm rectangle to a 1-bit raster at head
+// resolution. Full control over logo, fonts, QR and margins — far crisper and
+// more reliable than the printer's built-in fonts / PUTBMP.
+async function rasterizeTag(it, fields, logo) {
+  const W = TAG_PANEL_W * DPMM; // 416 dots (52mm)
+  const H = TAG_H * DPMM; // 120 dots (15mm)
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+
+  const PAD = 6; // small, even margin so content isn't crammed to the edge
+  let textX = PAD;
+
+  // Logo (left column), vertically centred.
+  if (fields.logo && logo) {
+    const ls = 88;
+    ctx.drawImage(logo, PAD, (H - ls) / 2, ls, ls);
+    textX = PAD + ls + 8;
+  }
+
+  // QR + SKU (right column), small margin from the right edge.
+  let rightLimit = W - PAD;
+  if (fields.qr && it.sku) {
+    const qrUrl = await QRCode.toDataURL(String(it.sku), { margin: 0, width: 220, errorCorrectionLevel: 'M' });
+    const qimg = new Image();
+    qimg.decoding = 'async';
+    qimg.src = qrUrl;
+    await qimg.decode();
+    const showSku = fields.sku && it.sku;
+    const qs = showSku ? 90 : 104;
+    const qx = W - qs - PAD;
+    const qy = showSku ? 2 : (H - qs) / 2;
+    ctx.imageSmoothingEnabled = false; // keep QR modules sharp
+    ctx.drawImage(qimg, qx, qy, qs, qs);
+    if (showSku) {
+      ctx.font = '700 16px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(fitText(ctx, it.sku, qs + 2 * PAD), qx + qs / 2, qy + qs + 2);
+      ctx.textAlign = 'left';
+    }
+    rightLimit = qx - 8;
+  } else if (fields.sku && it.sku) {
+    // No QR but SKU wanted — show it top-right.
+    ctx.font = '700 18px Arial, sans-serif';
+    const w = ctx.measureText(String(it.sku)).width;
+    ctx.fillText(String(it.sku), W - PAD - w, 6);
+  }
+
+  // Middle text column.
+  const maxTextW = Math.max(40, rightLimit - textX);
+  let y = 8;
+  const line = (txt, font, lh) => {
+    ctx.font = font;
+    ctx.fillText(fitText(ctx, txt, maxTextW), textX, y);
+    y += lh;
+  };
+  if (fields.brand) line('KPS SILVER', '800 17px Arial, sans-serif', 22);
+  if (fields.weight && it.gross_weight != null) line(`Wt: ${Number(it.gross_weight).toFixed(3)} g`, '800 26px Arial, sans-serif', 30);
+  if (fields.purity) line(`Purity: ${TAG_PURITY}`, '600 18px Arial, sans-serif', 23);
+  if (fields.design && it.design_no) line(`D.No: ${it.design_no}`, '600 18px Arial, sans-serif', 23);
+  if (fields.subcategory && (it.subcategory || it.category)) line(String(it.subcategory || it.category), 'italic 600 18px Arial, sans-serif', 23);
+
+  // Pack to a TSPL BITMAP payload (MSB-first; bit 0 = black dot, 1 = white).
+  const widthBytes = Math.ceil(W / 8);
+  const bytes = new Uint8Array(widthBytes * H).fill(0xff);
+  const px = ctx.getImageData(0, 0, W, H).data;
+  for (let yy = 0; yy < H; yy++) {
+    for (let xx = 0; xx < W; xx++) {
+      const i = (yy * W + xx) * 4;
+      const a = px[i + 3];
+      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      const black = a >= 128 && lum < 128;
+      if (black) bytes[yy * widthBytes + (xx >> 3)] &= ~(1 << (7 - (xx & 7)));
+    }
+  }
+  return { widthBytes, height: H, bytes };
+}
+
+// Builds the raw TSPL for all tags. The printable rectangle sits on the RIGHT
+// of the label (offset by the blank tail), matching the physical tag.
+async function buildTspl(items, fields, copies) {
   const q = Math.max(1, Math.round(copies) || 1);
-  const head = [
-    `SIZE ${TAG_W} mm,${TAG_H} mm`,
-    'GAP 3 mm,0 mm',
-    'DIRECTION 0,0',
-    'REFERENCE 0,0',
-    'OFFSET 0 mm',
-    'SPEED 3',
-    'DENSITY 10',
-    'SET RIBBON ON',
-    'SET TEAR ON',
-  ];
-  // The printable rectangle sits on the RIGHT of the tag; the blank string/tail
-  // is on the LEFT. So every X starts after the tail width (matches the old
-  // app, whose content lived on the right of the label). 8 dots/mm @ 203 dpi.
-  const X0 = TAG_TAIL_W * 8; // = 320 dots (40mm)
-  const x = (dx) => X0 + dx;
-  const lines = [];
-  items.forEach((it) => {
-    lines.push(...head, 'CLS');
-    if (fields.logo) lines.push(`PUTBMP ${x(12)},10,"KPS.bmp"`);
-    else if (fields.brand) lines.push(`TEXT ${x(16)},20,"ROMAN.TTF",0,7,7,"KPS SILVER"`);
-    if (fields.brand && fields.logo) lines.push(`TEXT ${x(12)},98,"ROMAN.TTF",0,4,4,"KPS SILVER"`);
-    if (fields.weight && it.gross_weight != null)
-      lines.push(`TEXT ${x(96)},12,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
-    if (fields.purity) lines.push(`TEXT ${x(96)},44,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
-    if (fields.design && it.design_no) lines.push(`TEXT ${x(96)},68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
-    if (fields.subcategory && (it.subcategory || it.category))
-      lines.push(`TEXT ${x(96)},92,"ROMAN.TTF",0,7,7,"${tsplEsc(it.subcategory || it.category)}"`);
-    if (fields.qr && it.sku) lines.push(`QRCODE ${x(300)},16,L,3,A,0,"${tsplEsc(it.sku)}"`);
-    if (fields.sku && it.sku) lines.push(`TEXT ${x(300)},104,"ROMAN.TTF",0,4,4,"${tsplEsc(it.sku)}"`);
-    lines.push(`PRINT 1,${q}`);
-  });
-  return lines.join('\r\n') + '\r\n';
+  const logo = fields.logo ? await loadTagLogo() : null;
+  const head =
+    `SIZE ${TAG_W} mm,${TAG_H} mm\r\nGAP 3 mm,0 mm\r\nDIRECTION 0,0\r\nREFERENCE 0,0\r\n` +
+    `OFFSET 0 mm\r\nSPEED 3\r\nDENSITY 10\r\nSET RIBBON ON\r\nSET TEAR ON\r\n`;
+  const X0 = TAG_TAIL_W * DPMM; // right-hand rectangle starts after the tail
+  let out = '';
+  for (const it of items) {
+    const { widthBytes, height, bytes } = await rasterizeTag(it, fields, logo);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    out += head + 'CLS\r\n';
+    out += `BITMAP ${X0},0,${widthBytes},${height},0,` + bin + '\r\n';
+    out += `PRINT 1,${q}\r\n`;
+  }
+  return out;
 }
 
 // ---- Browser fallback (system print dialog on the 92×15mm label) -----------
@@ -883,7 +979,7 @@ function openTagPrintDialog(items) {
     sysBtn.disabled = true;
     say('Opening the USB printer… (pick it if asked)');
     try {
-      const name = await webusbPrint(tsplBytes(buildTspl(items, fields, copies())), {});
+      const name = await webusbPrint(tsplBytes(await buildTspl(items, fields, copies())), {});
       say(`Printed to “${name}” ✓`, 'ok');
       setTimeout(close, 900);
     } catch (err) {
@@ -927,7 +1023,7 @@ function openTagPrintDialog(items) {
     sysBtn.disabled = true;
     say(`Sending to “${printerName}” via relay…`);
     try {
-      await relayPrintRaw(printerName, buildTspl(items, fields, copies()));
+      await relayPrintRaw(printerName, await buildTspl(items, fields, copies()));
       say('Sent to the printer ✓', 'ok');
       setTimeout(close, 900);
     } catch (err) {
