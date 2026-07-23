@@ -454,16 +454,31 @@ async function qzConnect() {
   return qz;
 }
 
-// Returns the list of printer names QZ can see (best-effort across versions).
+// Returns the list of printer names QZ can see. `printers.find()` with no query
+// is the documented, stable way to list ALL printers (returns an array of name
+// strings) — unlike `printers.detail`, whose object shape varies by QZ Tray
+// version. Falls back to the default printer if the list somehow comes back
+// empty.
 async function qzListPrinters() {
   const qz = await qzConnect();
+  let list = [];
   try {
-    const details = await qz.printers.details();
-    return (details || []).map((d) => (typeof d === 'string' ? d : d.name)).filter(Boolean);
+    const res = await qz.printers.find();
+    list = Array.isArray(res) ? res : res != null ? [res] : [];
   } catch {
-    const def = await qz.printers.find().catch(() => null);
-    return def ? [].concat(def) : [];
+    /* fall through to default below */
   }
+  list = list.map((p) => (typeof p === 'string' ? p : p && (p.name || p.printer))).filter(Boolean);
+  if (!list.length) {
+    try {
+      const def = await qz.printers.getDefault();
+      const name = typeof def === 'string' ? def : def && (def.name || def.printer);
+      if (name) list = [name];
+    } catch {
+      /* none available */
+    }
+  }
+  return list;
 }
 
 async function qzPrintRaw(printerName, data) {
