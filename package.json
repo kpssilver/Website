@@ -21,7 +21,8 @@
     "leaflet": "^1.9.4",
     "lenis": "^1.1.14",
     "qrcode": "^1.5.4",
-    "razorpay": "^2.9.6"
+    "razorpay": "^2.9.6",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "sharp": "^0.35.3",

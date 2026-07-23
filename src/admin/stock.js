@@ -1366,21 +1366,31 @@ export async function renderStock(root, session, opts = {}) {
   const openEditor = (item) => openStockItemEditor(item, { sets, dir, onSaved: reload });
 
   // ---- Scan & register an existing product by its printed QR / barcode ----
+  // OCR mode also reads the printed weight + design number off the tag so they
+  // auto-fill the new item alongside the scanned SKU.
   root.querySelector('#stkScanReg').addEventListener('click', () => {
-    openScanner((code) => {
-      const c = (code || '').trim();
-      if (!c) return;
-      const exact = items.find((it) =>
-        [it.sku, it.design_no].some((v) => (v || '').toString().toLowerCase() === c.toLowerCase()),
-      );
-      if (exact) {
-        alert(`Code ${c} is already registered as ${exact.sku}. Opening it for editing.`);
-        openEditor({ ...exact, images: [...(exact.images || [])] });
-      } else {
-        // Pre-fill the SKU with the scanned code; the user fills in the rest.
-        openEditor({ ...blankItem(), sku: c.toUpperCase() });
-      }
-    });
+    openScanner(
+      (code, details = {}) => {
+        const c = (code || '').trim();
+        const hasOcr = details.weight != null || details.design_no;
+        if (!c && !hasOcr) return;
+        const exact = c
+          ? items.find((it) => [it.sku, it.design_no].some((v) => (v || '').toString().toLowerCase() === c.toLowerCase()))
+          : null;
+        if (exact) {
+          alert(`Code ${c} is already registered as ${exact.sku}. Opening it for editing.`);
+          openEditor({ ...exact, images: [...(exact.images || [])] });
+        } else {
+          // Pre-fill SKU + anything OCR read from the tag; user fills the rest.
+          const patch = { ...blankItem() };
+          if (c) patch.sku = c.toUpperCase();
+          if (details.weight != null) patch.gross_weight = details.weight;
+          if (details.design_no) patch.design_no = details.design_no;
+          openEditor(patch);
+        }
+      },
+      { ocr: true },
+    );
   });
 
   // ---- Manage categories / subcategories / suppliers / collections ----
