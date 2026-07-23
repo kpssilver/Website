@@ -554,10 +554,13 @@ async function printTagsHtml(items, fields, copies) {
   const body = items.map((it, i) => oneTag(it, qrs[i]).repeat(q)).join('');
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${TAG_PRINT_CSS}</style></head><body>${body}</body></html>`;
 
-  // Hidden, isolated print surface.
+  // The iframe MUST stay rendered — a `display:none` / `visibility:hidden` /
+  // zero-size iframe prints blank, and the browser then silently falls back to
+  // printing the whole page (A4 + dashboard). So we move it off-screen instead,
+  // with real dimensions, and print its own window.
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:120mm;height:400px;border:0;background:#fff;';
   document.body.appendChild(iframe);
   const idoc = iframe.contentWindow.document;
   idoc.open();
@@ -565,7 +568,7 @@ async function printTagsHtml(items, fields, copies) {
   idoc.close();
 
   // Wait for QR + logo images inside the iframe to decode before printing.
-  const imgs = [...idoc.querySelectorAll('img')];
+  const imgs = [...idoc.images];
   await Promise.all(
     imgs.map((img) =>
       img.complete && img.naturalWidth
@@ -576,6 +579,8 @@ async function printTagsHtml(items, fields, copies) {
           }),
     ),
   );
+  // Let layout settle for a frame so the print isn't captured mid-render.
+  await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
 
   let removed = false;
   const remove = () => {
@@ -583,10 +588,11 @@ async function printTagsHtml(items, fields, copies) {
     removed = true;
     iframe.remove();
   };
-  iframe.contentWindow.onafterprint = () => setTimeout(remove, 500);
-  iframe.contentWindow.focus();
-  iframe.contentWindow.print();
-  // Safety net if afterprint never fires.
+  const win = iframe.contentWindow;
+  win.onafterprint = () => setTimeout(remove, 400);
+  win.focus();
+  win.print();
+  // Safety net if afterprint never fires (e.g. some mobile browsers).
   setTimeout(remove, 60000);
 }
 
