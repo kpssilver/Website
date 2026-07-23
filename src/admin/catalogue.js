@@ -17,7 +17,9 @@ function esc(s) {
 function thumbUrl(url, width = 800) {
   if (!url || typeof url !== 'string' || !url.includes('/storage/v1/object/public/')) return url;
   const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
-  return base + (base.includes('?') ? '&' : '?') + `width=${width}&quality=78`;
+  // resize=contain keeps the FULL image within the box (no cover-crop); the
+  // <img> onerror falls back to the original if transforms aren't enabled.
+  return base + (base.includes('?') ? '&' : '?') + `width=${width}&height=${width}&resize=contain&quality=80`;
 }
 
 // Detail fields shown under each image. `on` = visible by default.
