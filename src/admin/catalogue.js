@@ -113,11 +113,12 @@ function itemCard(it, priceFor) {
   return `
   <figure class="cat-item" data-id="${esc(it.id)}">
     <button type="button" class="cat-item-rm" data-rm="${esc(it.id)}" aria-label="Remove from catalogue">✕</button>
-    <div class="cat-item-img" data-field="image">${
-      img
-        ? `<img src="${esc(thumbUrl(img))}" data-full="${esc(img)}" onerror="this.onerror=null;this.src=this.dataset.full" alt="" loading="lazy" decoding="async" />`
-        : '<span class="cat-noimg">No photo</span>'
-    }<span class="cat-item-wm" data-wm hidden><span></span></span></div>
+    <div class="cat-item-img" data-field="image">
+      <div class="cat-item-img-inner">${
+        img
+          ? `<img src="${esc(thumbUrl(img))}" data-full="${esc(img)}" onerror="this.onerror=null;this.src=this.dataset.full" alt="" loading="lazy" decoding="async" />`
+          : '<span class="cat-noimg">No photo</span>'
+      }</div><span class="cat-item-wm" data-wm hidden><span></span></span></div>
     <figcaption class="cat-item-body">
       <div class="cat-title" data-field="title" contenteditable="true">${esc(fieldValue(it, 'title', priceFor))}</div>
       <div class="cat-meta">${chips}</div>
@@ -141,6 +142,7 @@ export function openCatalogue(items, { priceFor } = {}) {
   FIELDS.forEach((f) => (show[f.key] = f.on));
   show.image = true;
   let cols = items.length === 1 ? 1 : 2;
+  let onePerPage = false;
   const brand = { on: true, logo: true, brand: true, tagline: true, address: true, phone: true };
   const wm = { on: false, text: site.brand };
   const vals = {
@@ -168,6 +170,8 @@ export function openCatalogue(items, { priceFor } = {}) {
                 ${[1, 2, 3, 4].map((n) => `<option value="${n}" ${n === cols ? 'selected' : ''}>${n} per row</option>`).join('')}
               </select>
             </label>
+            <label class="cat-toggle"><input type="checkbox" id="catOnePer"/> One item per sheet (full page)</label>
+            <p class="cat-arrange" id="catArrange"></p>
             <label class="cat-toggle"><input type="checkbox" data-toggle="image" checked/> Show product photos</label>
             <label class="cat-toggle"><input type="checkbox" id="catWmOn"/> Add watermark on photos</label>
             <label class="cat-field"><span>Watermark text</span><input id="catWmText" value="${esc(wm.text)}" placeholder="e.g. KPS Silver" /></label>
@@ -250,10 +254,30 @@ export function openCatalogue(items, { priceFor } = {}) {
   );
 
   // ---- Live: layout ----
-  holder.querySelector('#catCols').addEventListener('change', (e) => {
+  const colsSel = holder.querySelector('#catCols');
+  const arrangeEl = holder.querySelector('#catArrange');
+  const itemCount = () => grid.querySelectorAll('.cat-item').length;
+  const updateArrange = () => {
+    const n = itemCount();
+    arrangeEl.textContent = onePerPage
+      ? `One item per sheet — ${n} sheet${n === 1 ? '' : 's'}, each product on its own page.`
+      : `${cols} per row — ${n} item${n === 1 ? '' : 's'} flow across the page(s).`;
+  };
+  const applyLayout = () => {
+    grid.classList.toggle('cat-grid--full', onePerPage);
+    grid.style.setProperty('--cols', onePerPage ? 1 : cols);
+    colsSel.disabled = onePerPage;
+    updateArrange();
+  };
+  colsSel.addEventListener('change', (e) => {
     cols = Number(e.target.value) || 2;
-    grid.style.setProperty('--cols', cols);
+    applyLayout();
   });
+  holder.querySelector('#catOnePer').addEventListener('change', (e) => {
+    onePerPage = e.target.checked;
+    applyLayout();
+  });
+  applyLayout();
 
   // ---- Live: watermark ----
   const applyWatermark = () => {
@@ -324,70 +348,99 @@ export function openCatalogue(items, { priceFor } = {}) {
     if (!btn) return;
     btn.closest('.cat-item')?.remove();
     if (!grid.querySelector('.cat-item')) close();
+    else updateArrange();
   });
 
   // ---- Save as PDF (client-side download — no printer dialog) ----
+  const PX_W = 794; // ≈ A4 width at 96dpi
+
+  // Render a DOM node to a canvas off-screen (with remote images inlined so the
+  // canvas isn't CORS-tainted). The node is styled like the on-screen sheet.
+  const nodeToCanvas = async (html2canvas, node) => {
+    const stage = document.createElement('div');
+    stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${PX_W}px;background:#fff;z-index:-1;`;
+    node.style.width = `${PX_W}px`;
+    node.style.maxWidth = 'none';
+    node.style.margin = '0';
+    node.style.boxShadow = 'none';
+    stage.appendChild(node);
+    document.body.appendChild(stage);
+    try {
+      await inlineImages(node);
+      return await html2canvas(node, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+    } finally {
+      stage.remove();
+    }
+  };
+
+  // A cleaned clone of the live preview (edits kept, editing affordances gone).
+  const cleanPreview = () => {
+    const clone = preview.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('.cat-item-rm').forEach((el) => el.remove());
+    clone.querySelectorAll('img').forEach((im) => im.removeAttribute('loading'));
+    return clone;
+  };
+
   holder.querySelector('#catPrint').addEventListener('click', async () => {
     const printBtn = holder.querySelector('#catPrint');
     const orig = printBtn.textContent;
     printBtn.disabled = true;
     printBtn.textContent = 'Preparing PDF…';
 
-    let stage;
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-
-      // Build an off-screen A4-width copy of the live preview (keeps hidden
-      // fields, layout + inline edits), stripped of editing affordances.
-      const PX_W = 794; // ≈ A4 width at 96dpi
-      stage = document.createElement('div');
-      stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${PX_W}px;background:#fff;z-index:-1;`;
-      const clone = preview.cloneNode(true);
-      clone.removeAttribute('id');
-      clone.style.maxWidth = 'none';
-      clone.style.width = `${PX_W}px`;
-      clone.style.margin = '0';
-      clone.style.boxShadow = 'none';
-      clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
-      clone.querySelectorAll('.cat-item-rm').forEach((el) => el.remove());
-      clone.querySelectorAll('img').forEach((im) => im.removeAttribute('loading'));
-      stage.appendChild(clone);
-      document.body.appendChild(stage);
-
-      // Inline remote images as data URLs so the canvas isn't tainted by CORS.
-      await inlineImages(clone);
-
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
       const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
-      // Paint the tall canvas across as many A4 pages as needed.
-      let position = 0;
-      let remaining = imgH;
-      pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
-      remaining -= pageH;
-      while (remaining > 0) {
-        position -= pageH;
-        pdf.addPage();
+      if (onePerPage) {
+        // One product per A4 page: render each item on its own sheet (with the
+        // header) and scale the whole thing to fit a single page.
+        const base = cleanPreview();
+        const headHtml = base.querySelector('.cat-sheet-head')?.outerHTML || '';
+        const noteNode = base.querySelector('.cat-note');
+        const noteHtml = noteNode && !noteNode.hidden ? noteNode.outerHTML : '';
+        const itemsHtml = [...base.querySelectorAll('.cat-item')].map((n) => n.outerHTML);
+
+        for (let i = 0; i < itemsHtml.length; i++) {
+          const sheet = document.createElement('div');
+          sheet.className = 'cat-preview';
+          sheet.innerHTML = `${headHtml}<div class="cat-grid cat-grid--full" style="--cols:1">${itemsHtml[i]}</div>${noteHtml}`;
+          const canvas = await nodeToCanvas(html2canvas, sheet);
+          const imgData = canvas.toDataURL('image/jpeg', 0.92);
+          // Fit within the page (contain), centred.
+          let w = pageW;
+          let h = (canvas.height * pageW) / canvas.width;
+          if (h > pageH) {
+            h = pageH;
+            w = (canvas.width * pageH) / canvas.height;
+          }
+          if (i > 0) pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', (pageW - w) / 2, 0, w, h);
+        }
+      } else {
+        // Continuous flow: render the whole sheet and slice across A4 pages.
+        const canvas = await nodeToCanvas(html2canvas, cleanPreview());
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        const imgH = (canvas.height * pageW) / canvas.width;
+        let position = 0;
+        let remaining = imgH;
         pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
         remaining -= pageH;
+        while (remaining > 0) {
+          position -= pageH;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
+          remaining -= pageH;
+        }
       }
       pdf.save(`KPS-Silver-Catalogue-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      // Fall back to the browser's print → "Save as PDF" if anything fails.
       alert(`Could not build the PDF automatically (${err?.message || err}). Opening the print dialog so you can choose “Save as PDF”.`);
       window.print();
     } finally {
-      if (stage) stage.remove();
       printBtn.disabled = false;
       printBtn.textContent = orig;
     }

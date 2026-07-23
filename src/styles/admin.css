@@ -1146,6 +1146,7 @@
 .cat-brand-fields { display: flex; flex-direction: column; gap: 0.7rem; padding-left: 0.8rem; border-left: 2px solid var(--a-border); }
 .cat-brand-fields.is-off { opacity: 0.4; pointer-events: none; }
 .cat-hint { font-size: 0.73rem; color: var(--a-text-dim); margin: 0.1rem 0 0; }
+.cat-arrange { font-size: 0.74rem; color: var(--a-rose-hi); margin: 0.1rem 0 0.2rem; }
 .cat-actions { margin-top: auto; padding-top: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .cat-actions .dash-btn { width: 100%; }
 
@@ -1162,13 +1163,17 @@
 .cat-grid { display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr); gap: 14px; }
 .cat-item { position: relative; border: 1px solid #e7e3dc; border-radius: 8px; overflow: hidden; background: #fff; display: flex; flex-direction: column; margin: 0; }
 .cat-item-rm { position: absolute; top: 6px; right: 6px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; line-height: 1; }
-/* The photo is shown at its NATURAL aspect ratio (in-flow, height:auto) so the
-   whole image is always visible — never cropped, on screen and in print/PDF.
-   `max-height` just caps very tall portraits so cards don't get absurdly long. */
-.cat-item-img { position: relative; width: 100%; background: #f5f3ef; overflow: hidden; text-align: center; }
+/* Uniform square image box so every product lines up in a neat grid. The photo
+   is centred with max-width/height (NOT object-fit, which html2canvas renders
+   inconsistently) so it's always fully visible — never cropped or distorted. */
+.cat-item-img { position: relative; width: 100%; padding-top: 100%; background: #f5f3ef; overflow: hidden; }
 .cat-item-img[hidden] { display: none; }
-.cat-item-img img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; margin: 0 auto; }
-.cat-noimg { display: block; padding: 46px 8px; font-size: 0.72rem; color: #aaa; }
+.cat-item-img-inner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 6px; }
+.cat-item-img img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
+.cat-noimg { font-size: 0.72rem; color: #aaa; }
+/* One-item-per-sheet: a taller hero image box that fills the page nicely. */
+.cat-grid--full { grid-template-columns: 1fr; }
+.cat-grid--full .cat-item-img { padding-top: 82%; }
 /* Optional catalogue watermark — diagonal, semi-transparent, over each photo. */
 .cat-item-wm { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1; }
 .cat-item-wm[hidden] { display: none; }
