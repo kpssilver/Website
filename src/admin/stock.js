@@ -442,14 +442,40 @@ function loadQz() {
 // certificate and breaks the handshake (connects, but calls return nothing).
 // QZ Tray shows a one-time "allow" prompt on the desktop. Throws 'qz-down' if
 // the helper app isn't running.
+//
+// A single shared connect promise is kept so concurrent callers (printer
+// discovery + the print button) await the SAME handshake instead of racing.
+// This matters because qz.websocket.isActive() is already true while the socket
+// is only CONNECTING — before the version handshake has populated
+// connection.semver. Printing in that window makes qz.print() throw
+// "Cannot read properties of undefined (reading '0')" (it reads semver[0]).
+let qzConnectPromise = null;
+
+function qzReady(qz) {
+  return !!(qz.websocket.isActive() && qz.websocket.connection && qz.websocket.connection.semver);
+}
+
 async function qzConnect() {
   const qz = await loadQz();
-  if (!qz.websocket.isActive()) {
-    try {
-      await qz.websocket.connect({ retries: 1, delay: 1 });
-    } catch {
-      throw new Error('qz-down');
-    }
+  if (qzReady(qz)) return qz;
+  if (!qzConnectPromise) {
+    qzConnectPromise = (async () => {
+      if (!qz.websocket.isActive()) {
+        await qz.websocket.connect({ retries: 1, delay: 1 });
+      }
+      // Ensure the version handshake finished so semver is populated before any
+      // print/list call runs (guards the CONNECTING race described above).
+      for (let i = 0; i < 60 && !(qz.websocket.connection && qz.websocket.connection.semver); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (!qzReady(qz)) throw new Error('qz-handshake');
+    })();
+  }
+  try {
+    await qzConnectPromise;
+  } catch {
+    qzConnectPromise = null;
+    throw new Error('qz-down');
   }
   return qz;
 }
@@ -488,9 +514,10 @@ async function qzPrintRaw(printerName, data) {
   let target = printerName;
   try {
     const found = await qz.printers.find(printerName);
-    if (found) target = Array.isArray(found) ? found[0] : found;
+    if (typeof found === 'string' && found) target = found;
+    else if (Array.isArray(found) && found.length) target = found[0];
   } catch {
-    /* use the typed name */
+    /* not found / listing unsupported — fall back to the typed name as-is */
   }
   const config = qz.configs.create(target, { encoding: 'ISO-8859-1' });
   await qz.print(config, [{ type: 'raw', format: 'command', flavor: 'plain', data }]);
@@ -751,7 +778,7 @@ function openTagPrintDialog(items) {
     if (printers.length) {
       printerList.innerHTML = printers.map((p) => `<option value="${esc(p)}"></option>`).join('');
       printerSel.value = savedPrinter && printers.includes(savedPrinter) ? savedPrinter : savedPrinter || printers[0];
-      setNote(`QZ Tray connected — ${printers.length} printer(s) found. Pick or type your label printer, then print.`, 'ok');
+      setNote(`QZ Tray connected — ${printers.length} printer(s) found. Pick or type your label printer, then print. (First time, click “Allow” on the QZ Tray desktop pop-up.)`, 'ok');
     } else {
       printerSel.value = savedPrinter || '';
       setNote(
@@ -783,11 +810,18 @@ function openTagPrintDialog(items) {
     printBtn.disabled = true;
     sysBtn.disabled = true;
     say(`Sending to “${printerName}”…`);
+    // If QZ Tray is waiting on its first-time desktop "Allow" prompt the print
+    // promise stays pending — nudge the user instead of looking frozen.
+    const stallHint = setTimeout(() => {
+      say(`Still sending… If QZ Tray shows an “Allow” pop-up on your desktop, click Allow (tick “Remember”).`, 'warn');
+    }, 6000);
     try {
       await qzPrintRaw(printerName, buildTspl(items, fields, copies()));
+      clearTimeout(stallHint);
       say('Sent to the printer ✓', 'ok');
       setTimeout(close, 900);
     } catch (err) {
+      clearTimeout(stallHint);
       const code = String(err?.message || '');
       say(
         code === 'qz-down'
