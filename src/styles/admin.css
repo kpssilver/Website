@@ -1171,13 +1171,21 @@
 .cat-item-img-inner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 6px; }
 .cat-item-img img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
 .cat-noimg { font-size: 0.72rem; color: #aaa; }
-/* One-item-per-sheet: a taller hero image box that fills the page nicely. */
+/* One-item-per-sheet (on-screen preview): a taller hero image box. */
 .cat-grid--full { grid-template-columns: 1fr; }
 .cat-grid--full .cat-item-img { padding-top: 82%; }
+/* One-item-per-sheet (PDF export): sized to full A4, photo fills the page so
+   removing the header/branding just gives the image more room (no empty gap). */
+.cat-sheet-a4 { display: flex; flex-direction: column; }
+.cat-sheet-a4 .cat-full-grid { flex: 1 1 auto; display: flex; min-height: 0; }
+.cat-sheet-a4 .cat-full-grid .cat-item { flex: 1 1 auto; border: none; }
+.cat-sheet-a4 .cat-full-grid .cat-item-img { flex: 1 1 auto; padding-top: 0; height: auto; min-height: 0; }
+.cat-sheet-a4 .cat-full-grid .cat-item-body { flex: 0 0 auto; }
+.cat-sheet-a4 .cat-full-grid .cat-item-wm span { font-size: 46px; }
 /* Optional catalogue watermark — diagonal, semi-transparent, over each photo. */
 .cat-item-wm { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1; }
 .cat-item-wm[hidden] { display: none; }
-.cat-item-wm span { transform: rotate(-28deg); font-weight: 800; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(0, 0, 0, 0.16); white-space: nowrap; text-align: center; }
+.cat-item-wm span { transform: rotate(-28deg); font-weight: 800; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(0, 0, 0, 0.22); white-space: nowrap; text-align: center; }
 .cat-item-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 5px; }
 .cat-title { font-weight: 700; font-size: 15px; color: #1a1a1a; line-height: 1.25; }
 .cat-meta { display: flex; flex-wrap: wrap; gap: 4px 6px; }
@@ -1195,7 +1203,7 @@
 .cat-print .cat-price:empty::before, .cat-print .cat-title:empty::before { content: ''; }
 @media print {
   .cat-item { break-inside: avoid; page-break-inside: avoid; }
-  .cat-item-wm span { -webkit-print-color-adjust: exact; print-color-adjust: exact; color: rgba(0, 0, 0, 0.16) !important; }
+  .cat-item-wm span { -webkit-print-color-adjust: exact; print-color-adjust: exact; color: rgba(0, 0, 0, 0.22) !important; }
 }
 @media (max-width: 820px) {
   .cat-layout { grid-template-columns: 1fr; max-height: 86vh; }

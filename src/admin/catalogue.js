@@ -14,12 +14,12 @@ function esc(s) {
 // Product photos are often multi-MB phone uploads, which made the catalogue slow
 // to load/print. Request a resized copy from Supabase's image-transform endpoint;
 // if transforms aren't enabled the <img> onerror falls back to the original.
-function thumbUrl(url, width = 800) {
+function thumbUrl(url, width = 1000, quality = 85) {
   if (!url || typeof url !== 'string' || !url.includes('/storage/v1/object/public/')) return url;
   const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
   // resize=contain keeps the FULL image within the box (no cover-crop); the
   // <img> onerror falls back to the original if transforms aren't enabled.
-  return base + (base.includes('?') ? '&' : '?') + `width=${width}&height=${width}&resize=contain&quality=80`;
+  return base + (base.includes('?') ? '&' : '?') + `width=${width}&height=${width}&resize=contain&quality=${quality}`;
 }
 
 // Fetch an image and return it as a data URL (so html2canvas can rasterise it
@@ -36,16 +36,18 @@ async function fetchAsDataUrl(url) {
   });
 }
 
-// Swap every remote <img> in `root` for an inlined data URL. Tries the resized
-// thumbnail first, then the original (data-full); leaves the tag untouched if
-// both fail (html2canvas useCORS may still capture it).
-async function inlineImages(root) {
+// Swap every remote <img> in `root` for an inlined data URL. For crisp output
+// it fetches a HIGH-RES copy (from the original via the transform endpoint),
+// then the original, then whatever src it had; leaves the tag untouched if all
+// fail (html2canvas useCORS may still capture it).
+async function inlineImages(root, width = 1600) {
   const imgs = [...root.querySelectorAll('img')];
   await Promise.all(
     imgs.map(async (img) => {
       const src = img.getAttribute('src') || '';
       if (!src || src.startsWith('data:')) return;
-      const candidates = [src, img.dataset.full].filter((u, i, a) => u && a.indexOf(u) === i);
+      const full = img.dataset.full;
+      const candidates = [full ? thumbUrl(full, width, 92) : null, full, src].filter((u, i, a) => u && a.indexOf(u) === i);
       for (const url of candidates) {
         try {
           img.src = await fetchAsDataUrl(url);
@@ -374,9 +376,12 @@ export function openCatalogue(items, { priceFor } = {}) {
   };
 
   // A cleaned clone of the live preview (edits kept, editing affordances gone).
+  // Hidden elements are REMOVED (not just display:none) so switched-off branding
+  // or product fields don't leave an empty gap in the PDF.
   const cleanPreview = () => {
     const clone = preview.cloneNode(true);
     clone.removeAttribute('id');
+    clone.querySelectorAll('[hidden]').forEach((el) => el.remove());
     clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
     clone.querySelectorAll('.cat-item-rm').forEach((el) => el.remove());
     clone.querySelectorAll('img').forEach((im) => im.removeAttribute('loading'));
@@ -396,34 +401,31 @@ export function openCatalogue(items, { priceFor } = {}) {
       const pageH = pdf.internal.pageSize.getHeight();
 
       if (onePerPage) {
-        // One product per A4 page: render each item on its own sheet (with the
-        // header) and scale the whole thing to fit a single page.
+        // One product per A4 page. Each sheet is sized to the FULL A4 aspect and
+        // the photo flex-fills the page (via .cat-sheet-a4), so removing the
+        // header just gives the image more room instead of leaving a gap.
+        const A4_H = Math.round(PX_W * (pageH / pageW));
         const base = cleanPreview();
         const headHtml = base.querySelector('.cat-sheet-head')?.outerHTML || '';
         const noteNode = base.querySelector('.cat-note');
-        const noteHtml = noteNode && !noteNode.hidden ? noteNode.outerHTML : '';
+        const noteHtml = noteNode ? noteNode.outerHTML : '';
         const itemsHtml = [...base.querySelectorAll('.cat-item')].map((n) => n.outerHTML);
 
         for (let i = 0; i < itemsHtml.length; i++) {
           const sheet = document.createElement('div');
-          sheet.className = 'cat-preview';
-          sheet.innerHTML = `${headHtml}<div class="cat-grid cat-grid--full" style="--cols:1">${itemsHtml[i]}</div>${noteHtml}`;
+          sheet.className = 'cat-preview cat-sheet-a4';
+          sheet.style.height = `${A4_H}px`;
+          sheet.innerHTML = `${headHtml}<div class="cat-grid cat-full-grid">${itemsHtml[i]}</div>${noteHtml}`;
           const canvas = await nodeToCanvas(html2canvas, sheet);
-          const imgData = canvas.toDataURL('image/jpeg', 0.92);
-          // Fit within the page (contain), centred.
-          let w = pageW;
-          let h = (canvas.height * pageW) / canvas.width;
-          if (h > pageH) {
-            h = pageH;
-            w = (canvas.width * pageH) / canvas.height;
-          }
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          // Sheet already matches A4 proportions → fill the whole page.
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', (pageW - w) / 2, 0, w, h);
+          pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
         }
       } else {
         // Continuous flow: render the whole sheet and slice across A4 pages.
         const canvas = await nodeToCanvas(html2canvas, cleanPreview());
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
         const imgH = (canvas.height * pageW) / canvas.width;
         let position = 0;
         let remaining = imgH;

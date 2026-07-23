@@ -380,10 +380,10 @@ const TAG_FIELDS = [
   { key: 'logo', label: 'Logo', on: true },
   { key: 'qr', label: 'QR code', on: true },
   { key: 'weight', label: 'Weight', on: true },
-  { key: 'brand', label: 'Brand name', on: false },
+  { key: 'category', label: 'Category', on: false },
+  { key: 'subcategory', label: 'Sub-category', on: false },
   { key: 'purity', label: 'Purity (92.5)', on: false },
   { key: 'design', label: 'Design number', on: false },
-  { key: 'subcategory', label: 'Sub-category', on: false },
   { key: 'sku', label: 'SKU text', on: false },
 ];
 const TAG_FIELDS_KEY = 'kps_tag_fields';
@@ -610,22 +610,16 @@ async function webusbPrint(bytes, { pick } = {}) {
 // Dots per mm at 203 dpi (8 dots/mm) — the native resolution of the label head.
 const DPMM = 8;
 
-// Load the KPS logo as a solid-BLACK mark on transparent bg (the favicon has a
-// dark box + silver gradient, which would print as an ugly black block). We
-// strip the background rect and force the mark to #000 so it rasterises to a
-// clean black-on-white logo. Cached after first load.
+// Load the KPS logo (Group 1.svg → public/logo.svg). It's already solid black
+// on a transparent background (emblem + "KPS SILVER" wordmark), so it needs no
+// recolouring — it rasterises straight to a clean black-on-white logo. Cached.
 let tagLogoPromise = null;
 function loadTagLogo() {
   if (tagLogoPromise) return tagLogoPromise;
   tagLogoPromise = (async () => {
-    const res = await fetch('/favicon.svg');
-    let svg = await res.text();
-    svg = svg.replace(/<rect[^>]*\/>/i, ''); // remove dark background box
-    svg = svg.replace(/fill="url\(#m\)"/gi, 'fill="#000"'); // mark -> solid black
-    const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     const img = new Image();
     img.decoding = 'async';
-    img.src = url;
+    img.src = '/logo.svg';
     await img.decode();
     return img;
   })().catch(() => null);
@@ -641,7 +635,8 @@ function fitText(ctx, text, maxW) {
 
 // Renders one tag's printable 52mm × 15mm rectangle to a 1-bit raster at head
 // resolution. Full control over logo, fonts, QR and margins — far crisper and
-// more reliable than the printer's built-in fonts / PUTBMP.
+// more reliable than the printer's built-in fonts / PUTBMP. Text (and the logo
+// / QR columns) auto-scale so everything fits no matter how many fields are on.
 async function rasterizeTag(it, fields, logo) {
   const W = TAG_PANEL_W * DPMM; // 416 dots (52mm)
   const H = TAG_H * DPMM; // 120 dots (15mm)
@@ -655,34 +650,42 @@ async function rasterizeTag(it, fields, logo) {
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
 
-  const PAD = 6; // small, even margin so content isn't crammed to the edge
+  const PAD = 5; // small, even margin so content isn't crammed to the edge
   let textX = PAD;
 
-  // Logo (left column), vertically centred.
+  // Logo (left column) — bigger now: fills the label height at its natural
+  // aspect ratio, with the width capped so the text column still has room.
   if (fields.logo && logo) {
-    const ls = 88;
-    ctx.drawImage(logo, PAD, (H - ls) / 2, ls, ls);
-    textX = PAD + ls + 8;
+    const aspect = (logo.naturalWidth || 1713) / (logo.naturalHeight || 1115);
+    let lh = H - 2 * PAD;
+    let lw = lh * aspect;
+    const LOGO_MAX_W = 150;
+    if (lw > LOGO_MAX_W) {
+      lw = LOGO_MAX_W;
+      lh = lw / aspect;
+    }
+    ctx.drawImage(logo, PAD, (H - lh) / 2, lw, lh);
+    textX = PAD + lw + 8;
   }
 
   // QR + SKU (right column), small margin from the right edge.
   let rightLimit = W - PAD;
   if (fields.qr && it.sku) {
-    const qrUrl = await QRCode.toDataURL(String(it.sku), { margin: 0, width: 220, errorCorrectionLevel: 'M' });
+    const qrUrl = await QRCode.toDataURL(String(it.sku), { margin: 0, width: 240, errorCorrectionLevel: 'M' });
     const qimg = new Image();
     qimg.decoding = 'async';
     qimg.src = qrUrl;
     await qimg.decode();
     const showSku = fields.sku && it.sku;
-    const qs = showSku ? 90 : 104;
+    const qs = showSku ? 92 : 108;
     const qx = W - qs - PAD;
-    const qy = showSku ? 2 : (H - qs) / 2;
+    const qy = showSku ? 3 : (H - qs) / 2;
     ctx.imageSmoothingEnabled = false; // keep QR modules sharp
     ctx.drawImage(qimg, qx, qy, qs, qs);
     if (showSku) {
       ctx.font = '700 16px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(fitText(ctx, it.sku, qs + 2 * PAD), qx + qs / 2, qy + qs + 2);
+      ctx.fillText(fitText(ctx, it.sku, qs + 2 * PAD), qx + qs / 2, qy + qs + 1);
       ctx.textAlign = 'left';
     }
     rightLimit = qx - 8;
@@ -693,19 +696,30 @@ async function rasterizeTag(it, fields, logo) {
     ctx.fillText(String(it.sku), W - PAD - w, 6);
   }
 
-  // Middle text column.
+  // Middle text column — collect enabled lines, then AUTO-SCALE their font
+  // sizes together so the whole block fits the label height (handles any
+  // combination of fields, and shrinks as more are added).
   const maxTextW = Math.max(40, rightLimit - textX);
-  let y = 8;
-  const line = (txt, font, lh) => {
-    ctx.font = font;
-    ctx.fillText(fitText(ctx, txt, maxTextW), textX, y);
-    y += lh;
-  };
-  if (fields.brand) line('KPS SILVER', '800 17px Arial, sans-serif', 22);
-  if (fields.weight && it.gross_weight != null) line(`Wt: ${Number(it.gross_weight).toFixed(3)} g`, '800 26px Arial, sans-serif', 30);
-  if (fields.purity) line(`Purity: ${TAG_PURITY}`, '600 18px Arial, sans-serif', 23);
-  if (fields.design && it.design_no) line(`D.No: ${it.design_no}`, '600 18px Arial, sans-serif', 23);
-  if (fields.subcategory && (it.subcategory || it.category)) line(String(it.subcategory || it.category), 'italic 600 18px Arial, sans-serif', 23);
+  const rows = [];
+  if (fields.weight && it.gross_weight != null) rows.push({ t: `Wt: ${Number(it.gross_weight).toFixed(3)} g`, size: 26, weight: 800, style: '' });
+  if (fields.category && it.category) rows.push({ t: String(it.category), size: 18, weight: 700, style: '' });
+  if (fields.subcategory && it.subcategory) rows.push({ t: String(it.subcategory), size: 18, weight: 600, style: 'italic ' });
+  if (fields.purity) rows.push({ t: `Purity: ${TAG_PURITY}`, size: 18, weight: 600, style: '' });
+  if (fields.design && it.design_no) rows.push({ t: `D.No: ${it.design_no}`, size: 18, weight: 600, style: '' });
+
+  if (rows.length) {
+    const GAP = 4;
+    const baseH = rows.reduce((s, r) => s + r.size * 1.16, 0) + GAP * (rows.length - 1);
+    const availH = H - 2 * PAD;
+    const scale = Math.min(1, availH / baseH);
+    let y = PAD + Math.max(0, (availH - baseH * scale) / 2);
+    for (const r of rows) {
+      const fs = Math.max(9, Math.round(r.size * scale));
+      ctx.font = `${r.style}${r.weight} ${fs}px Arial, sans-serif`;
+      ctx.fillText(fitText(ctx, r.t, maxTextW), textX, y);
+      y += fs * 1.16 * scale + GAP * scale;
+    }
+  }
 
   // Pack to a TSPL BITMAP payload (MSB-first; bit 0 = black dot, 1 = white).
   const widthBytes = Math.ceil(W / 8);
@@ -758,9 +772,9 @@ const TAG_PRINT_CSS = `
   /* Printable 52mm panel (content) then the blank 40mm string/tail. */
   .tag-panel { width: ${TAG_PANEL_W}mm; height: ${TAG_H}mm; display: flex; align-items: center; gap: 1.4mm; padding: 0.6mm 1.4mm; color: #000; font-family: Arial, Helvetica, sans-serif; }
   .tag-tail { width: ${TAG_TAIL_W}mm; }
-  .tag-logo { flex: 0 0 auto; width: 8mm; height: 8mm; object-fit: contain; }
+  .tag-logo { flex: 0 0 auto; width: auto; height: 13mm; max-width: 20mm; object-fit: contain; }
   .tag-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
-  .tag-brand { font-size: 5pt; font-weight: 800; letter-spacing: 0.06em; }
+  .tag-cat { font-size: 6pt; font-weight: 700; }
   .tag-wt { font-size: 8pt; font-weight: 800; }
   .tag-line { font-size: 6pt; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tag-sub { font-style: italic; }
@@ -771,7 +785,7 @@ const TAG_PRINT_CSS = `
 
 async function printTagsHtml(items, fields, copies) {
   const q = Math.max(1, Math.round(copies) || 1);
-  const logoSrc = `${location.origin}/favicon.svg`;
+  const logoSrc = `${location.origin}/logo.svg`;
 
   const qrs = await Promise.all(
     items.map((it) =>
@@ -783,7 +797,6 @@ async function printTagsHtml(items, fields, copies) {
 
   const oneTag = (it, qr) => {
     const wt = it.gross_weight != null ? Number(it.gross_weight).toFixed(3) : '';
-    const sub = it.subcategory || it.category || '';
     // Blank tail on the LEFT, printable panel on the RIGHT — matches the raw
     // TSPL layout and the physical label.
     return `
@@ -792,11 +805,11 @@ async function printTagsHtml(items, fields, copies) {
         <div class="tag-panel">
           ${fields.logo ? `<img src="${logoSrc}" alt="" class="tag-logo" />` : ''}
           <div class="tag-info">
-            ${fields.brand ? '<span class="tag-brand">KPS SILVER</span>' : ''}
             ${fields.weight && wt ? `<span class="tag-wt">Wt: ${esc(wt)} g</span>` : ''}
+            ${fields.category && it.category ? `<span class="tag-cat">${esc(it.category)}</span>` : ''}
+            ${fields.subcategory && it.subcategory ? `<span class="tag-line tag-sub">${esc(it.subcategory)}</span>` : ''}
             ${fields.purity ? `<span class="tag-line">Purity: ${TAG_PURITY}</span>` : ''}
             ${fields.design && it.design_no ? `<span class="tag-line">D.No: ${esc(it.design_no)}</span>` : ''}
-            ${fields.subcategory && sub ? `<span class="tag-line tag-sub">${esc(sub)}</span>` : ''}
           </div>
           <div class="tag-code">
             ${fields.qr && qr ? `<img src="${qr}" alt="" class="tag-qr" />` : ''}
