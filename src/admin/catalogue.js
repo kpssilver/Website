@@ -79,7 +79,7 @@ function itemCard(it, priceFor) {
       img
         ? `<img src="${esc(thumbUrl(img))}" data-full="${esc(img)}" onerror="this.onerror=null;this.src=this.dataset.full" alt="" loading="lazy" decoding="async" />`
         : '<span class="cat-noimg">No photo</span>'
-    }</div>
+    }<span class="cat-item-wm" data-wm hidden><span></span></span></div>
     <figcaption class="cat-item-body">
       <div class="cat-title" data-field="title" contenteditable="true">${esc(fieldValue(it, 'title', priceFor))}</div>
       <div class="cat-meta">${chips}</div>
@@ -104,6 +104,7 @@ export function openCatalogue(items, { priceFor } = {}) {
   show.image = true;
   let cols = items.length === 1 ? 1 : 2;
   const brand = { on: true, logo: true, brand: true, tagline: true, address: true, phone: true };
+  const wm = { on: false, text: site.brand };
   const vals = {
     brand: site.brand,
     tagline: site.motto,
@@ -130,6 +131,8 @@ export function openCatalogue(items, { priceFor } = {}) {
               </select>
             </label>
             <label class="cat-toggle"><input type="checkbox" data-toggle="image" checked/> Show product photos</label>
+            <label class="cat-toggle"><input type="checkbox" id="catWmOn"/> Add watermark on photos</label>
+            <label class="cat-field"><span>Watermark text</span><input id="catWmText" value="${esc(wm.text)}" placeholder="e.g. KPS Silver" /></label>
           </section>
 
           <section class="cat-sec">
@@ -213,6 +216,24 @@ export function openCatalogue(items, { priceFor } = {}) {
     cols = Number(e.target.value) || 2;
     grid.style.setProperty('--cols', cols);
   });
+
+  // ---- Live: watermark ----
+  const applyWatermark = () => {
+    preview.querySelectorAll('[data-wm]').forEach((el) => {
+      el.hidden = !wm.on || !wm.text.trim();
+      const span = el.querySelector('span');
+      if (span) span.textContent = wm.text;
+    });
+  };
+  holder.querySelector('#catWmOn').addEventListener('change', (e) => {
+    wm.on = e.target.checked;
+    applyWatermark();
+  });
+  holder.querySelector('#catWmText').addEventListener('input', (e) => {
+    wm.text = e.target.value;
+    applyWatermark();
+  });
+  applyWatermark();
 
   // ---- Live: branding ----
   const applyBranding = () => {

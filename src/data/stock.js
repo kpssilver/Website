@@ -88,6 +88,16 @@ export async function insertStockList(payload) {
   return data;
 }
 
+export async function updateStockList(id, payload) {
+  const { error } = await supabase.from('stock_lists').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteStockList(id) {
+  const { error } = await supabase.from('stock_lists').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // The stock item linked to a shop product (used to show inventory from Products).
 export async function fetchStockItemByProduct(productId) {
   if (!isSupabaseConfigured || !productId) return null;

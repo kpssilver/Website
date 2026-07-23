@@ -23,6 +23,8 @@ import {
   uploadStockMedia,
   fetchStockLists,
   insertStockList,
+  updateStockList,
+  deleteStockList,
   totalGrossWeight,
   totalQuantity,
   formatGrams,
@@ -88,30 +90,32 @@ function buildSets(items, lists = {}) {
 
 // Modal to add a new category / subcategory / supplier / collection with proper
 // details. Persists to stock_lists and resolves with the new name (or null).
-function openAddListModal(kind) {
+function openAddListModal(kind, existing = null) {
   const titles = { category: 'category', subcategory: 'sub category', supplier: 'supplier', collection: 'collection' };
   const isSupplier = kind === 'supplier';
+  const isEdit = !!(existing && existing.id);
+  const e = existing || {};
   return new Promise((resolve) => {
     const holder = document.createElement('div');
     holder.innerHTML = `
     <div class="pm-modal-backdrop" id="slBackdrop" style="z-index:120">
-      <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="New ${titles[kind] || kind}">
-        <div class="pm-modal-head"><h2>New ${titles[kind] || kind}</h2><button class="pm-x" id="slClose" type="button" aria-label="Close">✕</button></div>
+      <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="${isEdit ? 'Edit' : 'New'} ${titles[kind] || kind}">
+        <div class="pm-modal-head"><h2>${isEdit ? 'Edit' : 'New'} ${titles[kind] || kind}</h2><button class="pm-x" id="slClose" type="button" aria-label="Close">✕</button></div>
         <form class="pm-form" id="slForm">
           <div class="pm-form-grid">
-            <label class="pm-lbl pm-col-2">Name *<input name="name" type="text" required autocomplete="off" placeholder="e.g. ${isSupplier ? 'Sri Lakshmi Silvers' : kind === 'collection' ? 'Heritage' : 'Pooja Articles'}" /></label>
+            <label class="pm-lbl pm-col-2">Name *<input name="name" type="text" required autocomplete="off" value="${esc(e.name)}" placeholder="e.g. ${isSupplier ? 'Sri Lakshmi Silvers' : kind === 'collection' ? 'Heritage' : 'Pooja Articles'}" /></label>
             ${
               isSupplier
-                ? `<label class="pm-lbl">Mobile<input name="mobile" type="text" placeholder="Optional" /></label>
-                   <label class="pm-lbl">GST / code<input name="notes" type="text" placeholder="Optional" /></label>
-                   <label class="pm-lbl pm-col-2">Address<input name="address" type="text" placeholder="Optional" /></label>`
-                : `<label class="pm-lbl pm-col-2">Description<textarea name="description" rows="2" placeholder="Optional details for this ${titles[kind] || kind}"></textarea></label>`
+                ? `<label class="pm-lbl">Mobile<input name="mobile" type="text" value="${esc(e.mobile)}" placeholder="Optional" /></label>
+                   <label class="pm-lbl">GST / code<input name="notes" type="text" value="${esc(e.notes)}" placeholder="Optional" /></label>
+                   <label class="pm-lbl pm-col-2">Address<input name="address" type="text" value="${esc(e.address)}" placeholder="Optional" /></label>`
+                : `<label class="pm-lbl pm-col-2">Description<textarea name="description" rows="2" placeholder="Optional details for this ${titles[kind] || kind}">${esc(e.description)}</textarea></label>`
             }
           </div>
           <div class="pm-form-actions">
             <span class="pm-save-msg" id="slMsg"></span>
             <button type="button" class="dash-btn dash-btn--ghost" id="slCancel">Cancel</button>
-            <button type="submit" class="dash-btn" id="slSubmit">Add &amp; save</button>
+            <button type="submit" class="dash-btn" id="slSubmit">${isEdit ? 'Save changes' : 'Add &amp; save'}</button>
           </div>
         </form>
       </div>
@@ -140,15 +144,16 @@ function openAddListModal(kind) {
       btn.disabled = true;
       msg.textContent = 'Saving…';
       msg.className = 'pm-save-msg';
+      const record = {
+        name,
+        description: (fd.get('description') || '').trim() || null,
+        mobile: (fd.get('mobile') || '').trim() || null,
+        address: (fd.get('address') || '').trim() || null,
+        notes: (fd.get('notes') || '').trim() || null,
+      };
       try {
-        await insertStockList({
-          kind,
-          name,
-          description: (fd.get('description') || '').trim() || null,
-          mobile: (fd.get('mobile') || '').trim() || null,
-          address: (fd.get('address') || '').trim() || null,
-          notes: (fd.get('notes') || '').trim() || null,
-        });
+        if (isEdit) await updateStockList(existing.id, record);
+        else await insertStockList({ kind, ...record });
         done(name);
       } catch (err) {
         // Already exists → just reuse the name.
@@ -273,6 +278,14 @@ function editorMarkup(it, sets = {}) {
             <input name="design_no" type="text" value="${esc(it.design_no)}" placeholder="${isNew ? 'Auto-assigned' : ''}" />
           </label>
 
+          ${
+            isNew
+              ? `<label class="pm-lbl pm-col-2">SKU / barcode ${ic('Leave blank to auto-assign (KPS#####). To register an existing product, scan or type the code printed on its tag so it keeps the same SKU.')}
+            <input name="sku" type="text" value="${esc(it.sku)}" placeholder="Auto-assigned if blank" autocomplete="off" />
+          </label>`
+              : ''
+          }
+
           <label class="pm-lbl pm-col-2">Notes ${ic('Any internal notes about the piece (condition, location, remarks). Not printed on the tag.')}
             <textarea name="notes" rows="2" placeholder="Optional internal notes">${esc(it.notes)}</textarea>
           </label>
@@ -333,6 +346,7 @@ function editorMarkup(it, sets = {}) {
 
 const blankItem = () => ({
   title: '',
+  sku: '',
   category: '',
   subcategory: '',
   supplier: '',
@@ -363,6 +377,16 @@ async function printTags(items) {
       QRCode.toDataURL(String(it.sku || ''), { margin: 0, width: 240, errorCorrectionLevel: 'M' }).catch(() => ''),
     ),
   );
+
+  // Force the print dialog onto the 100mm × 15mm label instead of A4. Browsers
+  // ignore `size` on a *named* @page, so we inject an unnamed @page rule for the
+  // duration of the print and remove it afterwards (keeps invoices/catalogues
+  // on A4). Identical for admin and staff since they share this code.
+  const pageStyle = document.createElement('style');
+  pageStyle.id = 'stk-tag-page';
+  pageStyle.media = 'print';
+  pageStyle.textContent = '@page { size: 100mm 15mm; margin: 0; }';
+  document.head.appendChild(pageStyle);
 
   const wrap = document.createElement('div');
   wrap.className = 'print-sheet print-sheet--tags';
@@ -408,10 +432,15 @@ async function printTags(items) {
 
   const cleanup = () => {
     wrap.remove();
+    pageStyle.remove();
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
   window.print();
+  // Safety net if `afterprint` never fires (some mobile browsers).
+  setTimeout(() => {
+    if (document.getElementById('stk-tag-page')) cleanup();
+  }, 1500);
 }
 
 // ---- Entry -----------------------------------------------------------------
@@ -425,6 +454,8 @@ export async function renderStock(root, session, opts = {}) {
         <p class="pm-lede">Add or remove inventory. Every item gets an SKU + design number, a printable tag, and appears in Products automatically.</p>
       </div>
       <div class="stk-top-btns">
+        <button class="dash-btn dash-btn--ghost" id="stkManage" type="button">Manage categories</button>
+        <button class="dash-btn dash-btn--ghost" id="stkScanReg" type="button">Scan &amp; register</button>
         <button class="dash-btn dash-btn--ghost" id="stkCatalogue" type="button">Create catalogue</button>
         <button class="dash-btn" id="stkAdd" type="button">+ New stock item</button>
       </div>
@@ -723,7 +754,150 @@ export async function renderStock(root, session, opts = {}) {
 
   const openEditor = (item) => openStockItemEditor(item, { sets, dir, onSaved: reload });
 
+  // ---- Scan & register an existing product by its printed QR / barcode ----
+  root.querySelector('#stkScanReg').addEventListener('click', () => {
+    openScanner((code) => {
+      const c = (code || '').trim();
+      if (!c) return;
+      const exact = items.find((it) =>
+        [it.sku, it.design_no].some((v) => (v || '').toString().toLowerCase() === c.toLowerCase()),
+      );
+      if (exact) {
+        alert(`Code ${c} is already registered as ${exact.sku}. Opening it for editing.`);
+        openEditor({ ...exact, images: [...(exact.images || [])] });
+      } else {
+        // Pre-fill the SKU with the scanned code; the user fills in the rest.
+        openEditor({ ...blankItem(), sku: c.toUpperCase() });
+      }
+    });
+  });
+
+  // ---- Manage categories / subcategories / suppliers / collections ----
+  root.querySelector('#stkManage').addEventListener('click', () => openManageLists({ onChange: reload }));
+
   reload();
+}
+
+// Manage the master lists (categories, sub categories, suppliers, collections)
+// used across the stock + product forms. Add, rename/edit details, or delete.
+// Deleting only removes the suggestion — existing items keep their value.
+async function openManageLists({ onChange } = {}) {
+  const KINDS = [
+    { kind: 'category', label: 'Categories' },
+    { kind: 'subcategory', label: 'Sub categories' },
+    { kind: 'supplier', label: 'Suppliers' },
+    { kind: 'collection', label: 'Collections' },
+  ];
+  let lists = {};
+  const holder = document.createElement('div');
+  holder.innerHTML = `
+  <div class="pm-modal-backdrop" id="mlBackdrop" style="z-index:110">
+    <div class="pm-modal" role="dialog" aria-modal="true" aria-label="Manage lists">
+      <div class="pm-modal-head">
+        <h2>Manage categories &amp; lists</h2>
+        <button class="pm-x" id="mlClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="stk-tabs" role="tablist">
+        ${KINDS.map((k, i) => `<button type="button" class="stk-tab${i === 0 ? ' is-active' : ''}" data-kind="${k.kind}">${k.label}</button>`).join('')}
+      </div>
+      <div class="ml-body" id="mlBody"><div class="cm-loading">Loading…</div></div>
+    </div>
+  </div>`;
+  document.body.appendChild(holder);
+  const body = holder.querySelector('#mlBody');
+  let active = 'category';
+  let touched = false;
+
+  const close = () => {
+    holder.remove();
+    if (touched && onChange) onChange();
+  };
+  holder.querySelector('#mlClose').addEventListener('click', close);
+  holder.querySelector('#mlBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'mlBackdrop') close();
+  });
+
+  const load = async () => {
+    try {
+      lists = await fetchStockLists();
+    } catch {
+      lists = {};
+    }
+  };
+
+  const render = () => {
+    const rows = (lists[active] || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const meta = (r) =>
+      [r.description, r.mobile, r.address, r.notes].filter(Boolean).join(' · ');
+    body.innerHTML = `
+      <div class="ml-actions">
+        <button class="dash-btn" id="mlAdd" type="button">+ Add new</button>
+      </div>
+      ${
+        rows.length
+          ? `<ul class="ml-list">${rows
+              .map(
+                (r) => `<li class="ml-item" data-id="${esc(r.id)}">
+          <div class="ml-item-txt"><span class="ml-item-name">${esc(r.name)}</span>${meta(r) ? `<span class="ml-item-meta">${esc(meta(r))}</span>` : ''}</div>
+          <div class="ml-item-tools">
+            <button class="pm-tool" data-mledit="${esc(r.id)}" type="button" title="Edit" aria-label="Edit">${EDIT_ICON}</button>
+            <button class="pm-tool pm-tool--danger" data-mldel="${esc(r.id)}" type="button" title="Delete" aria-label="Delete">${DEL_ICON}</button>
+          </div>
+        </li>`,
+              )
+              .join('')}</ul>`
+          : `<p class="pm-hint">No entries yet. Click “Add new” to create one — it will appear in the dropdowns everywhere.</p>`
+      }`;
+
+    body.querySelector('#mlAdd').addEventListener('click', async () => {
+      const name = await openAddListModal(active);
+      if (name) {
+        touched = true;
+        await load();
+        render();
+      }
+    });
+    body.querySelectorAll('[data-mledit]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const row = (lists[active] || []).find((r) => r.id === btn.dataset.mledit);
+        if (!row) return;
+        const ok = await openAddListModal(active, row);
+        if (ok) {
+          touched = true;
+          await load();
+          render();
+        }
+      }),
+    );
+    body.querySelectorAll('[data-mldel]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const row = (lists[active] || []).find((r) => r.id === btn.dataset.mldel);
+        if (!row) return;
+        if (!confirm(`Delete “${row.name}” from the list? Existing items keep this value; it just stops appearing as a suggestion.`)) return;
+        btn.disabled = true;
+        try {
+          await deleteStockList(row.id);
+          touched = true;
+          await load();
+          render();
+        } catch (err) {
+          alert(`Delete failed: ${err.message}`);
+          btn.disabled = false;
+        }
+      }),
+    );
+  };
+
+  holder.querySelectorAll('.stk-tab').forEach((tab) =>
+    tab.addEventListener('click', () => {
+      holder.querySelectorAll('.stk-tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+      active = tab.dataset.kind;
+      render();
+    }),
+  );
+
+  await load();
+  render();
 }
 
 // Standalone stock-item editor — usable from the Stock register and from the
@@ -879,6 +1053,12 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
     // it is managed exclusively through movements (restock / sale / return) so
     // the ledger and on-hand stay in sync.
     if (!item.id) payload.quantity = Math.max(1, Math.round(num(fd.get('quantity')) ?? 1));
+    // SKU is editable only when creating: blank → DB auto-assigns; a scanned /
+    // typed code registers an existing product under its own SKU.
+    if (!item.id) {
+      const sku = (fd.get('sku') || '').trim().toUpperCase();
+      if (sku) payload.sku = sku;
+    }
 
     if (!payload.category) {
       msg.textContent = 'Category is required.';
