@@ -114,10 +114,15 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
           <label class="pm-lbl" id="invPartyWrap"><span id="invPartyLabel">Customer</span>
             <select id="invParty"><option value="">Loading…</option></select>
           </label>
-          <div class="pm-lbl inv-newparty" id="invNewParty" hidden>
-            <div class="pm-inline">
-              <input id="invNewName" type="text" placeholder="New name" />
-              <input id="invNewMobile" type="text" placeholder="Mobile (optional)" />
+          <div class="pm-lbl inv-newparty pm-col-2" id="invNewParty" hidden>
+            <span class="inv-newparty-h">New <span id="invNewKind">customer</span> details</span>
+            <div class="inv-newparty-grid">
+              <input id="invNewName" type="text" placeholder="Full name *" autocomplete="off" />
+              <input id="invNewMobile" type="text" placeholder="Mobile" autocomplete="off" />
+              <input id="invNewEmail" type="email" placeholder="Email (optional)" autocomplete="off" />
+              <input id="invNewGstin" type="text" placeholder="GSTIN (optional)" autocomplete="off" />
+              <input id="invNewAddress" type="text" class="inv-newparty-full" placeholder="Address (optional)" autocomplete="off" />
+              <input id="invNewOpening" type="number" step="0.01" placeholder="Opening balance ₹ (optional)" />
             </div>
           </div>
         </div>
@@ -142,6 +147,10 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
             <label class="pm-lbl">GST / Tax (%)<input id="invTax" type="number" step="0.001" min="0" value="3" /></label>
             <label class="pm-lbl">Amount paid (₹)<input id="invPaid" type="number" step="0.01" min="0" value="0" /></label>
             <div id="invMethodWrap" class="inv-method-wrap">${comboField({ name: 'payment_method', label: 'Payment method', value: 'Cash', options: PAYMENT_METHODS })}</div>
+            <label class="pm-lbl inv-silver pm-col-2" id="invSilverWrap" hidden>Silver received (grams)
+              <input id="invSilverWt" type="number" step="0.001" min="0" value="0" placeholder="Weight in grams" />
+              <span class="pm-field-note" id="invSilverNote"></span>
+            </label>
           </div>
           <div class="inv-totals" id="invTotals"></div>
         </div>
@@ -328,10 +337,39 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
 
   ['#invDiscount', '#invTax', '#invPaid'].forEach((s) => $(s).addEventListener('input', renderTotals));
 
+  // Silver settlement: when the customer pays with metal, ask for the weight and
+  // convert it to rupees at the live silver rate — that value becomes the amount
+  // paid, so it reduces the invoice's balance due.
+  const silverRate = () => Number(settings?.silver_rate_999 || 0);
+  const methodValue = () => holder.querySelector('#invMethodWrap .kps-combo-val')?.value || '';
+  const applySilver = () => {
+    const on = methodValue() === 'Silver';
+    $('#invSilverWrap').hidden = !on;
+    const paid = $('#invPaid');
+    if (on) {
+      const wt = Number($('#invSilverWt').value || 0);
+      const rate = silverRate();
+      const val = round2(wt * rate);
+      paid.value = val;
+      paid.readOnly = true;
+      $('#invSilverNote').textContent =
+        rate > 0
+          ? `${wt.toFixed(3)} g × ₹${rate.toLocaleString('en-IN')}/g = ${money(val)} applied to this bill`
+          : 'No live silver rate set — update it in Products → pricing to value silver.';
+    } else {
+      paid.readOnly = false;
+    }
+    renderTotals();
+  };
+  holder.querySelector('#invMethodWrap .kps-combo-sel').addEventListener('change', applySilver);
+  $('#invSilverWt').addEventListener('input', applySilver);
+
   // Party options + inline new.
   const renderPartyOptions = () => {
     const label = invoiceKind(kindSel.value).party === 'seller' ? 'Seller' : 'Customer';
     $('#invPartyLabel').textContent = label;
+    const kindEl = $('#invNewKind');
+    if (kindEl) kindEl.textContent = label.toLowerCase();
     partySel.innerHTML =
       `<option value="">— Select ${label.toLowerCase()} —</option>` +
       parties.map((p) => `<option value="${p.id}">${esc(p.name)}${p.mobile ? ` (${esc(p.mobile)})` : ''}</option>`).join('') +
@@ -372,6 +410,11 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
           kind: invoiceKind(kindSel.value).party,
           name,
           mobile: $('#invNewMobile').value.trim() || null,
+          email: $('#invNewEmail').value.trim() || null,
+          address: $('#invNewAddress').value.trim() || null,
+          gstin: $('#invNewGstin').value.trim() || null,
+          opening_balance: Number($('#invNewOpening').value || 0),
+          active: true,
         });
         partyId = created.id;
       }
@@ -404,6 +447,11 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
       // actually settles the party balance and carries the payment method.
       if (t.paid > 0 && partyId) {
         const method = holder.querySelector('#invMethodWrap .kps-combo-val')?.value || null;
+        const silverWt = Number($('#invSilverWt').value || 0);
+        const silverNote =
+          method === 'Silver' && silverWt > 0
+            ? ` · ${silverWt.toFixed(3)} g silver @ ₹${silverRate().toLocaleString('en-IN')}/g`
+            : '';
         try {
           await createPayment({
             party_id: partyId,
@@ -411,7 +459,7 @@ export function openInvoiceModal({ kind = 'sale', prefill = [], onSaved } = {}) 
             amount: t.paid,
             method: method || null,
             paid_on: invoice.invoice_date,
-            notes: `Paid against ${saved.invoice_no}`,
+            notes: `Paid against ${saved.invoice_no}${silverNote}`,
           });
         } catch (payErr) {
           console.error('[KPS] payment record failed:', payErr);

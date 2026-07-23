@@ -30,20 +30,58 @@ export function parseTagText(text) {
   return out;
 }
 
-// Grab the current video frame into a canvas for still-image decoding / OCR.
-function grabFrame(video) {
+// Crop the current frame to the central band (the tag is wide + short), scale
+// it down, and boost contrast — smaller + cleaner input makes OCR much faster
+// and more accurate than a full-resolution colour frame.
+function prepForOcr(video) {
+  const vw = video.videoWidth || 720;
+  const vh = video.videoHeight || 540;
+  const cropW = Math.round(vw * 0.94);
+  const cropH = Math.round(vh * 0.6);
+  const sx = Math.round((vw - cropW) / 2);
+  const sy = Math.round((vh - cropH) / 2);
+  const scale = Math.min(1, 1000 / cropW);
   const c = document.createElement('canvas');
-  c.width = video.videoWidth || 720;
-  c.height = video.videoHeight || 540;
-  c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+  c.width = Math.round(cropW * scale);
+  c.height = Math.round(cropH * scale);
+  const cx = c.getContext('2d');
+  cx.drawImage(video, sx, sy, cropW, cropH, 0, 0, c.width, c.height);
+  const im = cx.getImageData(0, 0, c.width, c.height);
+  const d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    g = g < 128 ? Math.max(0, g - 45) : Math.min(255, g + 45); // contrast
+    d[i] = d[i + 1] = d[i + 2] = g;
+  }
+  cx.putImageData(im, 0, 0);
   return c;
 }
 
-// Run OCR over a canvas and return the parsed tag fields. Tesseract.js is
-// lazy-loaded so it never weighs down the main bundle.
-async function ocrTag(canvas) {
-  const Tesseract = (await import('tesseract.js')).default;
-  const { data } = await Tesseract.recognize(canvas, 'eng');
+// A single Tesseract worker is created once and reused across scans (creating a
+// worker is the slow part). Restricting the page-segmentation mode + charset
+// keeps recognition fast. Lazy-loaded so it never weighs down the main bundle.
+let ocrWorkerPromise = null;
+function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = (async () => {
+      const { createWorker } = await import('tesseract.js');
+      const worker = await createWorker('eng');
+      await worker.setParameters({
+        tessedit_pageseg_mode: '6', // a single uniform block of text
+        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.:/- ',
+      });
+      return worker;
+    })().catch((e) => {
+      ocrWorkerPromise = null;
+      throw e;
+    });
+  }
+  return ocrWorkerPromise;
+}
+
+async function ocrTag(video) {
+  const worker = await getOcrWorker();
+  const { data } = await worker.recognize(prepForOcr(video));
   return parseTagText(data?.text || '');
 }
 
@@ -113,9 +151,8 @@ export function openScanner(onResult, opts = {}) {
     if (captureBtn) captureBtn.disabled = true;
     let details = {};
     try {
-      const frame = grabFrame(video);
       status.textContent = 'Reading the tag text…';
-      details = await ocrTag(frame);
+      details = await ocrTag(video);
     } catch {
       /* OCR unavailable/failed — still return whatever code we have */
     }
@@ -124,6 +161,8 @@ export function openScanner(onResult, opts = {}) {
   };
 
   if (captureBtn) captureBtn.addEventListener('click', () => finish(lastCode));
+  // Warm up the OCR worker while the user is still aiming, so capture is fast.
+  if (ocr) getOcrWorker().catch(() => {});
 
   reader
     .decodeFromVideoDevice(undefined, video, (result, err, ctrl) => {

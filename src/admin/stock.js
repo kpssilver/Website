@@ -640,10 +640,15 @@ function fitText(ctx, text, maxW) {
 async function rasterizeTag(it, fields, logo) {
   const W = TAG_PANEL_W * DPMM; // 416 dots (52mm)
   const H = TAG_H * DPMM; // 120 dots (15mm)
+  // Supersample: draw at S× resolution, then downsample+threshold to 1-bit.
+  // Averaging antialiased pixels before thresholding yields clean, well-formed
+  // glyph edges — far crisper than thresholding a 1× render.
+  const S = 3;
   const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = W * S;
+  canvas.height = H * S;
   const ctx = canvas.getContext('2d');
+  ctx.scale(S, S); // all drawing below stays in logical dots
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#000';
@@ -714,24 +719,31 @@ async function rasterizeTag(it, fields, logo) {
     const scale = Math.min(1, availH / baseH);
     let y = PAD + Math.max(0, (availH - baseH * scale) / 2);
     for (const r of rows) {
-      const fs = Math.max(9, Math.round(r.size * scale));
+      const fs = Math.max(11, Math.round(r.size * scale));
       ctx.font = `${r.style}${r.weight} ${fs}px Arial, sans-serif`;
       ctx.fillText(fitText(ctx, r.t, maxTextW), textX, y);
       y += fs * 1.16 * scale + GAP * scale;
     }
   }
 
-  // Pack to a TSPL BITMAP payload (MSB-first; bit 0 = black dot, 1 = white).
+  // Downsample each S×S block → 1-bit (bit 0 = black dot, 1 = white). A block is
+  // black when its average coverage passes the threshold, which fattens thin
+  // strokes just enough to print crisply on the thermal head.
   const widthBytes = Math.ceil(W / 8);
   const bytes = new Uint8Array(widthBytes * H).fill(0xff);
-  const px = ctx.getImageData(0, 0, W, H).data;
+  const CW = W * S;
+  const px = ctx.getImageData(0, 0, CW, H * S).data;
   for (let yy = 0; yy < H; yy++) {
     for (let xx = 0; xx < W; xx++) {
-      const i = (yy * W + xx) * 4;
-      const a = px[i + 3];
-      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      const black = a >= 128 && lum < 128;
-      if (black) bytes[yy * widthBytes + (xx >> 3)] &= ~(1 << (7 - (xx & 7)));
+      let sum = 0;
+      for (let by = 0; by < S; by++) {
+        for (let bx = 0; bx < S; bx++) {
+          const i = ((yy * S + by) * CW + (xx * S + bx)) * 4;
+          const a = px[i + 3];
+          sum += a >= 128 ? 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] : 255;
+        }
+      }
+      if (sum / (S * S) < 145) bytes[yy * widthBytes + (xx >> 3)] &= ~(1 << (7 - (xx & 7)));
     }
   }
   return { widthBytes, height: H, bytes };

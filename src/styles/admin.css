@@ -1051,7 +1051,9 @@
 .biz-tx-run { font-size: 0.72rem; color: var(--a-text-dim); }
 
 /* ---- Stock filters + catalogue selection ----------------------------------- */
-.stk-top-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.stk-top-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+/* Keep the toolbar a tidy strip of compact buttons rather than 4 chunky ones. */
+.stk-top-btns .dash-btn { padding: 0.5rem 0.85rem; font-size: 0.8rem; }
 .stk-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1rem; align-items: flex-end; }
 .stk-filter { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.72rem; color: var(--a-text-dim); }
 .stk-filter select, .stk-filter input { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 8px; padding: 0.45rem 0.55rem; font: inherit; font-size: 0.82rem; }
@@ -1311,6 +1313,16 @@
   .biz-add-btns { width: 100%; }
   .biz-add-btns .dash-btn { flex: 1; }
 
+  /* Stock toolbar: secondary actions sit 2-up, primary spans full width, so it
+     reads as one compact block instead of four stacked full-width buttons. */
+  .stk-top-btns { width: 100%; gap: 0.5rem; }
+  .stk-top-btns .dash-btn { width: auto; flex: 1 1 calc(50% - 0.25rem); }
+  .stk-top-btns #stkAdd { flex: 1 1 100%; }
+
+  /* Modal / dialog footers wrap instead of overflowing. */
+  .pm-form-actions { flex-wrap: wrap; justify-content: stretch; }
+  .pm-form-actions .dash-btn { flex: 1 1 auto; }
+
   /* Card action rows wrap and buttons grow to a comfortable tap size. */
   .pm-card { grid-template-columns: 1fr; }
   .pm-card-actions { flex-wrap: wrap; justify-content: stretch; }
@@ -1343,3 +1355,48 @@
   .stk-stat--hero .stk-stat-val { font-size: 1.7rem; }
   .pm-modal-head h2 { font-size: 1.1rem; }
 }
+
+/* ===========================================================================
+   UNIFIED DROPDOWNS — every <select> across the admin gets a consistent look
+   with a custom chevron instead of the inconsistent native control. Placed
+   last so the chevron survives the various `background:` shorthands above.
+   =========================================================================== */
+.pm-lbl select,
+.stk-filter select,
+select.cat-select,
+.cat-field select,
+.kps-combo-sel {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23aeb6c2' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 1.9rem;
+  cursor: pointer;
+}
+.pm-lbl select::-ms-expand { display: none; }
+
+/* Business dashboard filters read as one cohesive bar. */
+.biz-daterow {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--a-border);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+}
+.biz-date input { min-width: 150px; }
+.stk-filter select, .stk-filter input { min-width: 130px; }
+
+/* Invoice → inline "new customer/seller" detail grid. */
+.inv-newparty { gap: 0.5rem; }
+.inv-newparty-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--a-rose-hi); font-weight: 700; }
+.inv-newparty-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.inv-newparty-grid input {
+  width: 100%; padding: 0.5rem 0.65rem; border-radius: 9px;
+  background: rgba(0, 0, 0, 0.28); border: 1px solid var(--a-border);
+  color: var(--a-silver-hi); font: inherit; font-size: 0.85rem;
+}
+.inv-newparty-grid input:focus { outline: none; border-color: var(--a-rose); }
+.inv-newparty-full { grid-column: 1 / -1; }
+.inv-silver .pm-field-note { color: var(--a-rose-hi); font-weight: 600; }
+@media (max-width: 560px) { .inv-newparty-grid { grid-template-columns: 1fr; } }
