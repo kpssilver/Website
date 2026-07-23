@@ -406,18 +406,70 @@ function saveTagFields(fields) {
   }
 }
 
-// ---- Direct-to-printer path (Web Serial + TSPL) ----------------------------
-// Thermal label printers speak TSPL. Web Serial lets us stream the exact same
-// commands the old app used straight to a USB/serial printer — no OS print
-// dialog. Works in Chrome/Edge over HTTPS after a one-time permission grant.
-const serialSupported = () => typeof navigator !== 'undefined' && 'serial' in navigator;
+// ---- Direct-to-printer path (QZ Tray + raw TSPL) ---------------------------
+// A USB label printer is a *printer-class* device, not a serial/COM port, so
+// Web Serial / WebUSB can't see it ("no compatible devices"). And Chrome on
+// Windows ignores @page size, so the browser dialog falls back to A4. The
+// reliable cross-platform fix is QZ Tray — a tiny local helper the browser
+// talks to over a websocket; it streams the raw TSPL (which itself sets
+// SIZE 92mm,15mm) straight to the printer by name, with no dialog and the exact
+// label size on Windows *and* Mac. Requires QZ Tray installed + running.
+const QZ_SRC = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
+const QZ_PRINTER_KEY = 'kps_label_printer';
 
-// CP1252/latin1 byte stream (TSPL is not UTF-8).
-function toLatin1(str) {
-  const out = new Uint8Array(str.length);
-  for (let i = 0; i < str.length; i++) out[i] = str.charCodeAt(i) & 0xff;
-  return out;
+let qzScriptPromise = null;
+function loadQz() {
+  if (typeof window !== 'undefined' && window.qz) return Promise.resolve(window.qz);
+  if (!qzScriptPromise) {
+    qzScriptPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = QZ_SRC;
+      s.async = true;
+      s.onload = () => (window.qz ? resolve(window.qz) : reject(new Error('qz-missing')));
+      s.onerror = () => reject(new Error('qz-load'));
+      document.head.appendChild(s);
+    });
+  }
+  return qzScriptPromise;
 }
+
+// Connect (once) in unsigned mode — QZ Tray shows a one-time "allow" prompt on
+// the desktop. Throws 'qz-down' if the helper app isn't running.
+async function qzConnect() {
+  const qz = await loadQz();
+  if (!qz.security.__kpsInit) {
+    qz.security.setCertificatePromise((resolve) => resolve());
+    qz.security.setSignaturePromise(() => (resolve) => resolve());
+    qz.security.__kpsInit = true;
+  }
+  if (!qz.websocket.isActive()) {
+    try {
+      await qz.websocket.connect({ retries: 1, delay: 1 });
+    } catch {
+      throw new Error('qz-down');
+    }
+  }
+  return qz;
+}
+
+// Returns the list of printer names QZ can see (best-effort across versions).
+async function qzListPrinters() {
+  const qz = await qzConnect();
+  try {
+    const details = await qz.printers.details();
+    return (details || []).map((d) => (typeof d === 'string' ? d : d.name)).filter(Boolean);
+  } catch {
+    const def = await qz.printers.find().catch(() => null);
+    return def ? [].concat(def) : [];
+  }
+}
+
+async function qzPrintRaw(printerName, data) {
+  const qz = await qzConnect();
+  const config = qz.configs.create(printerName, { encoding: 'ISO-8859-1' });
+  await qz.print(config, [{ type: 'raw', format: 'command', flavor: 'plain', data }]);
+}
+
 const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
 
 // All X coordinates stay inside the left 52mm panel (0–416 dots at 8 dots/mm);
@@ -452,43 +504,6 @@ function buildTspl(items, fields, copies) {
     lines.push(`PRINT 1,${q}`);
   });
   return lines.join('\r\n') + '\r\n';
-}
-
-// Returns a serial port (reusing a previously authorised one), prompting the
-// user to pick a printer if none is remembered. Resolves null if the user
-// cancels or no device is available.
-async function getLabelPort() {
-  const ports = await navigator.serial.getPorts();
-  if (ports.length) return ports[0];
-  try {
-    return await navigator.serial.requestPort();
-  } catch {
-    return null; // NotFoundError (nothing to pick) or user cancelled
-  }
-}
-
-// Streams TSPL to the connected printer. Throws a tagged Error the dialog can
-// translate into a friendly message.
-async function printTagsSerial(items, fields, copies) {
-  if (!serialSupported()) throw new Error('unsupported');
-  const port = await getLabelPort();
-  if (!port) throw new Error('noport');
-  try {
-    await port.open({ baudRate: 9600 });
-  } catch (err) {
-    throw new Error('openfail:' + (err?.message || err));
-  }
-  try {
-    const writer = port.writable.getWriter();
-    await writer.write(toLatin1(buildTspl(items, fields, copies)));
-    writer.releaseLock();
-  } finally {
-    try {
-      await port.close();
-    } catch {
-      /* already closed */
-    }
-  }
 }
 
 // ---- Browser fallback (system print dialog on the 92×15mm label) -----------
@@ -598,11 +613,19 @@ async function printTagsHtml(items, fields, copies) {
 
 // ---- Print dialog ----------------------------------------------------------
 // Lets the user choose which details to print and how many copies, then either
-// streams directly to a connected label printer or falls back to the system
-// dialog. Same behaviour for admin and staff.
+// streams raw TSPL straight to the label printer via QZ Tray (exact size, no
+// dialog, Windows + Mac) or falls back to the system print dialog. Same for
+// admin and staff.
 function openTagPrintDialog(items) {
   if (!items || !items.length) return;
   const fields = loadTagFields();
+  const savedPrinter = (() => {
+    try {
+      return localStorage.getItem(QZ_PRINTER_KEY) || '';
+    } catch {
+      return '';
+    }
+  })();
 
   const holder = document.createElement('div');
   holder.innerHTML = `
@@ -627,24 +650,35 @@ function openTagPrintDialog(items) {
             <input id="tpCopies" type="number" min="1" step="1" value="1" />
           </label>
         </div>
+        <div class="tp-sec">
+          <h3 class="tp-sec-h">Label printer (direct)</h3>
+          <select id="tpPrinter" class="cat-select"><option value="">Detecting QZ Tray…</option></select>
+          <p class="tp-note" id="tpNote">Looking for the QZ Tray helper…</p>
+        </div>
         <p class="tp-status" id="tpStatus"></p>
       </div>
       <div class="pm-form-actions">
         <button type="button" class="dash-btn dash-btn--ghost" id="tpSystem">System print dialog</button>
-        <button type="button" class="dash-btn" id="tpPrint">Print directly</button>
+        <button type="button" class="dash-btn" id="tpPrint" disabled>Print to label printer</button>
       </div>
     </div>
   </div>`;
   document.body.appendChild(holder);
 
   const status = holder.querySelector('#tpStatus');
+  const note = holder.querySelector('#tpNote');
   const copiesEl = holder.querySelector('#tpCopies');
+  const printerSel = holder.querySelector('#tpPrinter');
   const printBtn = holder.querySelector('#tpPrint');
   const sysBtn = holder.querySelector('#tpSystem');
   const close = () => holder.remove();
   const say = (msg, kind = '') => {
     status.textContent = msg;
     status.className = `tp-status${kind ? ` is-${kind}` : ''}`;
+  };
+  const setNote = (msg, kind = '') => {
+    note.textContent = msg;
+    note.className = `tp-note${kind ? ` is-${kind}` : ''}`;
   };
   const copies = () => Math.max(1, Math.round(Number(copiesEl.value) || 1));
 
@@ -659,6 +693,32 @@ function openTagPrintDialog(items) {
     }),
   );
 
+  // Discover printers via QZ Tray (non-blocking; enables the direct button).
+  (async () => {
+    try {
+      const printers = await qzListPrinters();
+      if (!printers.length) {
+        printerSel.innerHTML = '<option value="">No printers found</option>';
+        setNote('QZ Tray is running but no printers were found. Check the printer is installed in Windows/macOS.', 'warn');
+        return;
+      }
+      printerSel.innerHTML = printers
+        .map((p) => `<option value="${esc(p)}" ${p === savedPrinter ? 'selected' : ''}>${esc(p)}</option>`)
+        .join('');
+      printBtn.disabled = false;
+      setNote('QZ Tray connected. Pick your label printer, then “Print to label printer”.', 'ok');
+    } catch (err) {
+      printerSel.innerHTML = '<option value="">QZ Tray not detected</option>';
+      const code = String(err?.message || '');
+      setNote(
+        code === 'qz-load'
+          ? 'Could not load QZ Tray. Check your internet, or use the system print dialog.'
+          : 'QZ Tray helper isn’t running. Install it from qz.io and open it to print directly — or use the system print dialog below (choose your label paper size).',
+        'warn',
+      );
+    }
+  })();
+
   sysBtn.addEventListener('click', async () => {
     sysBtn.disabled = true;
     printBtn.disabled = true;
@@ -668,29 +728,31 @@ function openTagPrintDialog(items) {
   });
 
   printBtn.addEventListener('click', async () => {
-    if (!serialSupported()) {
-      say('Direct printing needs Chrome or Edge on a computer. Opening the system print dialog instead…', 'warn');
-      printBtn.disabled = true;
-      await printTagsHtml(items, fields, copies());
-      setTimeout(close, 400);
+    const printerName = printerSel.value;
+    if (!printerName) {
+      say('Pick a label printer first.', 'warn');
       return;
+    }
+    try {
+      localStorage.setItem(QZ_PRINTER_KEY, printerName);
+    } catch {
+      /* ignore */
     }
     printBtn.disabled = true;
     sysBtn.disabled = true;
-    say('Sending to the label printer…');
+    say(`Sending to “${printerName}”…`);
     try {
-      await printTagsSerial(items, fields, copies());
+      await qzPrintRaw(printerName, buildTspl(items, fields, copies()));
       say('Sent to the printer ✓', 'ok');
       setTimeout(close, 900);
     } catch (err) {
       const code = String(err?.message || '');
-      if (code === 'noport') {
-        say('No label printer connected. Plug in your USB label printer and pick it when prompted — or use the system print dialog.', 'warn');
-      } else if (code.startsWith('openfail')) {
-        say('Found a printer but could not open it (it may be in use by another app). Try again, or use the system print dialog.', 'warn');
-      } else {
-        say('Could not print directly. Use the system print dialog below.', 'warn');
-      }
+      say(
+        code === 'qz-down'
+          ? 'Lost the connection to QZ Tray. Make sure the QZ Tray app is running, then try again.'
+          : `Could not print directly (${code || 'error'}). Use the system print dialog below.`,
+        'warn',
+      );
       printBtn.disabled = false;
       sysBtn.disabled = false;
     }

@@ -990,6 +990,10 @@
 .tp-status { min-height: 1.1rem; margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--a-text-dim); }
 .tp-status.is-ok { color: #6ee7a0; }
 .tp-status.is-warn { color: var(--a-gold); }
+.tp-note { margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--a-text-dim); line-height: 1.4; }
+.tp-note.is-ok { color: #6ee7a0; }
+.tp-note.is-warn { color: var(--a-gold); }
+#tpPrinter { width: 100%; }
 
 /* ---- Manage lists (categories / suppliers / collections) ------------------- */
 .ml-body { padding: 1.1rem 1.3rem 1.3rem; overflow-y: auto; max-height: 62vh; }
