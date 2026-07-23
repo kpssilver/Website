@@ -494,6 +494,119 @@ async function relayPrintRaw(printerName, data) {
   }
 }
 
+// ---- WebUSB direct printing (no install) -----------------------------------
+// Chrome/Edge can talk to the label printer over USB directly and stream raw
+// TSPL — nothing to install, just a one-time in-browser "select printer" click
+// (permission is remembered afterwards). Requires HTTPS + a user gesture.
+//
+// Caveat: on Windows, once the printer's own driver is installed the OS
+// (usbprint) can hold the USB interface, so claimInterface() may fail — we
+// surface a clear message and the user falls back to the relay/system dialog.
+function webusbSupported() {
+  return typeof navigator !== 'undefined' && !!navigator.usb;
+}
+
+const tsplBytes = (str) => {
+  const out = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) out[i] = str.charCodeAt(i) & 0xff;
+  return out;
+};
+
+// Turns a USB device name into something friendly for the UI.
+function usbName(device) {
+  return (
+    device.productName ||
+    [device.manufacturerName, device.serialNumber].filter(Boolean).join(' ') ||
+    `USB device ${device.vendorId?.toString(16)}:${device.productId?.toString(16)}`
+  );
+}
+
+// Returns a previously-granted printer-like device (bulk OUT endpoint), or null.
+async function webusbGranted() {
+  if (!webusbSupported()) return null;
+  let devices = [];
+  try {
+    devices = await navigator.usb.getDevices();
+  } catch {
+    return null;
+  }
+  // Prefer a USB printer-class device; otherwise the first with a bulk OUT.
+  const scored = devices
+    .map((d) => ({ d, ...findBulkOut(d) }))
+    .filter((x) => x.ep != null);
+  scored.sort((a, b) => Number(b.isPrinter) - Number(a.isPrinter));
+  return scored.length ? scored[0].d : null;
+}
+
+// Locates a bulk OUT endpoint (preferring the printer interface class 0x07).
+function findBulkOut(device) {
+  const cfg = device.configuration || (device.configurations && device.configurations[0]);
+  if (!cfg) return { ep: null };
+  let best = { ep: null };
+  for (const iface of cfg.interfaces) {
+    for (const alt of iface.alternates) {
+      const out = alt.endpoints.find((e) => e.direction === 'out' && e.type === 'bulk');
+      if (!out) continue;
+      const cand = {
+        ifaceNum: iface.interfaceNumber,
+        alt: alt.alternateSetting,
+        ep: out.endpointNumber,
+        isPrinter: alt.interfaceClass === 0x07,
+      };
+      if (best.ep == null || cand.isPrinter) best = cand;
+      if (cand.isPrinter) return best;
+    }
+  }
+  return best;
+}
+
+// Sends raw TSPL to the printer over WebUSB. If `pick` is true (or nothing was
+// granted yet) it prompts the user to choose the device — this MUST be called
+// from a click handler so the gesture requirement is satisfied.
+async function webusbPrint(bytes, { pick } = {}) {
+  if (!webusbSupported()) throw new Error('This browser has no USB access. Use Chrome or Edge (desktop).');
+  let device = pick ? null : await webusbGranted();
+  if (!device) {
+    try {
+      device = await navigator.usb.requestDevice({ filters: [] });
+    } catch (err) {
+      throw new Error(err && err.name === 'NotFoundError' ? 'No printer selected.' : 'Could not open the USB picker.');
+    }
+  }
+  await device.open();
+  try {
+    if (!device.configuration) await device.selectConfiguration(1);
+    const target = findBulkOut(device);
+    if (target.ep == null) throw new Error('The selected USB device has no printable (bulk OUT) endpoint.');
+    await device.claimInterface(target.ifaceNum);
+    if (target.alt) {
+      try {
+        await device.selectAlternateInterface(target.ifaceNum, target.alt);
+      } catch {
+        /* most printers only have the default alt */
+      }
+    }
+    // Chunk to stay well under typical transfer limits.
+    const CHUNK = 8192;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      const res = await device.transferOut(target.ep, bytes.slice(i, i + CHUNK));
+      if (res.status !== 'ok') throw new Error(`USB transfer ${res.status}`);
+    }
+    try {
+      await device.releaseInterface(target.ifaceNum);
+    } catch {
+      /* ignore */
+    }
+  } finally {
+    try {
+      await device.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  return usbName(device);
+}
+
 const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
 
 // All X coordinates stay inside the left 52mm panel (0–416 dots at 8 dots/mm);
@@ -675,16 +788,19 @@ function openTagPrintDialog(items) {
           </label>
         </div>
         <div class="tp-sec">
-          <h3 class="tp-sec-h">Label printer (direct)</h3>
-          <input id="tpPrinter" class="cat-select" list="tpPrinterList" autocomplete="off" placeholder="Detecting…" />
-          <datalist id="tpPrinterList"></datalist>
-          <p class="tp-note" id="tpNote">Looking for the KPS Print Relay…</p>
+          <h3 class="tp-sec-h">Label printer</h3>
+          <p class="tp-note" id="tpNote">Checking for a direct printing option…</p>
+          <div id="tpRelayRow" style="display:none;margin-top:8px">
+            <input id="tpPrinter" class="cat-select" list="tpPrinterList" autocomplete="off" placeholder="Printer name (e.g. TSC TE244)" />
+            <datalist id="tpPrinterList"></datalist>
+          </div>
         </div>
         <p class="tp-status" id="tpStatus"></p>
       </div>
       <div class="pm-form-actions">
         <button type="button" class="dash-btn dash-btn--ghost" id="tpSystem">System print dialog</button>
-        <button type="button" class="dash-btn" id="tpPrint" disabled>Print to label printer</button>
+        <button type="button" class="dash-btn dash-btn--ghost" id="tpPrint" style="display:none">Print via relay</button>
+        <button type="button" class="dash-btn" id="tpUsb" style="display:none">Print via USB</button>
       </div>
     </div>
   </div>`;
@@ -695,7 +811,9 @@ function openTagPrintDialog(items) {
   const copiesEl = holder.querySelector('#tpCopies');
   const printerSel = holder.querySelector('#tpPrinter');
   const printerList = holder.querySelector('#tpPrinterList');
+  const relayRow = holder.querySelector('#tpRelayRow');
   const printBtn = holder.querySelector('#tpPrint');
+  const usbBtn = holder.querySelector('#tpUsb');
   const sysBtn = holder.querySelector('#tpSystem');
   const close = () => holder.remove();
   const say = (msg, kind = '') => {
@@ -719,41 +837,68 @@ function openTagPrintDialog(items) {
     }),
   );
 
-  // Discover printers via the local KPS Print Relay. As long as the relay is
-  // reachable we ENABLE direct printing even if the printer list is empty — the
-  // user can type the exact OS printer name and print. Raw TSPL sets the label
-  // size, so there is no A4/system dialog involved.
+  // Primary path: WebUSB — nothing to install, one-time in-browser printer pick.
+  // We show it whenever the browser supports USB access.
   (async () => {
-    let info;
-    try {
-      info = await relayStatus();
-    } catch {
-      printerSel.placeholder = 'Print relay not running';
+    if (webusbSupported()) {
+      usbBtn.style.display = '';
+      const granted = await webusbGranted().catch(() => null);
       setNote(
-        'KPS Print Relay isn’t running on this computer. Start it (see tools/kps-print-relay) to print tags directly — or use the system print dialog below.',
-        'warn',
+        granted
+          ? `USB ready — “${esc(usbName(granted))}”. Click “Print via USB”.`
+          : 'Click “Print via USB”, then pick your label printer once. No install needed (Chrome/Edge). It’s remembered next time.',
+        granted ? 'ok' : '',
       );
-      return;
-    }
-    printBtn.disabled = false;
-    printerSel.placeholder = 'Printer name (e.g. TSC TE244)';
-    const printers = info.printers || [];
-    if (printers.length) {
-      printerList.innerHTML = printers.map((p) => `<option value="${esc(p)}"></option>`).join('');
-      printerSel.value = savedPrinter && printers.includes(savedPrinter) ? savedPrinter : savedPrinter || printers[0];
-      setNote(`Print relay connected (${esc(info.os || 'OS')}) — ${printers.length} printer(s) found. Pick or type your label printer, then print.`, 'ok');
     } else {
-      printerSel.value = savedPrinter || '';
-      setNote(
-        'Print relay connected, but no printers were listed. Type your printer name exactly as it appears in the OS and click Print.',
-        'warn',
-      );
+      setNote('This browser can’t access USB directly. Use Chrome/Edge, or the system print dialog below.', 'warn');
+    }
+
+    // Secondary path: if the local relay happens to be running, offer it too.
+    try {
+      const info = await relayStatus();
+      relayRow.style.display = '';
+      printBtn.style.display = '';
+      const printers = info.printers || [];
+      if (printers.length) {
+        printerList.innerHTML = printers.map((p) => `<option value="${esc(p)}"></option>`).join('');
+        printerSel.value = savedPrinter && printers.includes(savedPrinter) ? savedPrinter : savedPrinter || printers[0];
+      } else {
+        printerSel.value = savedPrinter || '';
+      }
+    } catch {
+      /* relay not running — WebUSB and the system dialog remain available */
     }
   })();
+
+  usbBtn.addEventListener('click', async () => {
+    usbBtn.disabled = true;
+    printBtn.disabled = true;
+    sysBtn.disabled = true;
+    say('Opening the USB printer… (pick it if asked)');
+    try {
+      const name = await webusbPrint(tsplBytes(buildTspl(items, fields, copies())), {});
+      say(`Printed to “${name}” ✓`, 'ok');
+      setTimeout(close, 900);
+    } catch (err) {
+      const msg = String(err?.message || 'USB print failed');
+      // A claim failure on Windows almost always means the OS driver holds the port.
+      const claimed = /claim|access|SecurityError|in use|protected/i.test(msg);
+      say(
+        claimed
+          ? 'Windows is holding this printer’s USB port, so the browser can’t send to it directly. Use the system print dialog below, or run the local relay.'
+          : `${msg}. You can use the system print dialog below instead.`,
+        'warn',
+      );
+      usbBtn.disabled = false;
+      printBtn.disabled = false;
+      sysBtn.disabled = false;
+    }
+  });
 
   sysBtn.addEventListener('click', async () => {
     sysBtn.disabled = true;
     printBtn.disabled = true;
+    usbBtn.disabled = true;
     say('Opening the system print dialog…');
     await printTagsHtml(items, fields, copies());
     close();
@@ -771,8 +916,9 @@ function openTagPrintDialog(items) {
       /* ignore */
     }
     printBtn.disabled = true;
+    usbBtn.disabled = true;
     sysBtn.disabled = true;
-    say(`Sending to “${printerName}”…`);
+    say(`Sending to “${printerName}” via relay…`);
     try {
       await relayPrintRaw(printerName, buildTspl(items, fields, copies()));
       say('Sent to the printer ✓', 'ok');
@@ -782,10 +928,11 @@ function openTagPrintDialog(items) {
       say(
         code === 'relay-down'
           ? 'Lost the connection to the KPS Print Relay. Make sure it’s still running, then try again.'
-          : `Could not print directly (${code || 'error'}). Use the system print dialog below.`,
+          : `Could not print via relay (${code || 'error'}). Try “Print via USB” or the system print dialog.`,
         'warn',
       );
       printBtn.disabled = false;
+      usbBtn.disabled = false;
       sysBtn.disabled = false;
     }
   });
