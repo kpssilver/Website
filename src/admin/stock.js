@@ -624,20 +624,25 @@ function buildTspl(items, fields, copies) {
     'SET RIBBON ON',
     'SET TEAR ON',
   ];
+  // The printable rectangle sits on the RIGHT of the tag; the blank string/tail
+  // is on the LEFT. So every X starts after the tail width (matches the old
+  // app, whose content lived on the right of the label). 8 dots/mm @ 203 dpi.
+  const X0 = TAG_TAIL_W * 8; // = 320 dots (40mm)
+  const x = (dx) => X0 + dx;
   const lines = [];
   items.forEach((it) => {
     lines.push(...head, 'CLS');
-    if (fields.logo) lines.push('PUTBMP 12,10,"KPS.bmp"');
-    else if (fields.brand) lines.push('TEXT 16,20,"ROMAN.TTF",0,7,7,"KPS SILVER"');
-    if (fields.brand && fields.logo) lines.push('TEXT 12,98,"ROMAN.TTF",0,4,4,"KPS SILVER"');
+    if (fields.logo) lines.push(`PUTBMP ${x(12)},10,"KPS.bmp"`);
+    else if (fields.brand) lines.push(`TEXT ${x(16)},20,"ROMAN.TTF",0,7,7,"KPS SILVER"`);
+    if (fields.brand && fields.logo) lines.push(`TEXT ${x(12)},98,"ROMAN.TTF",0,4,4,"KPS SILVER"`);
     if (fields.weight && it.gross_weight != null)
-      lines.push(`TEXT 96,12,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
-    if (fields.purity) lines.push(`TEXT 96,44,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
-    if (fields.design && it.design_no) lines.push(`TEXT 96,68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
+      lines.push(`TEXT ${x(96)},12,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
+    if (fields.purity) lines.push(`TEXT ${x(96)},44,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
+    if (fields.design && it.design_no) lines.push(`TEXT ${x(96)},68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
     if (fields.subcategory && (it.subcategory || it.category))
-      lines.push(`TEXT 96,92,"ROMAN.TTF",0,7,7,"${tsplEsc(it.subcategory || it.category)}"`);
-    if (fields.qr && it.sku) lines.push(`QRCODE 300,16,L,3,A,0,"${tsplEsc(it.sku)}"`);
-    if (fields.sku && it.sku) lines.push(`TEXT 300,104,"ROMAN.TTF",0,4,4,"${tsplEsc(it.sku)}"`);
+      lines.push(`TEXT ${x(96)},92,"ROMAN.TTF",0,7,7,"${tsplEsc(it.subcategory || it.category)}"`);
+    if (fields.qr && it.sku) lines.push(`QRCODE ${x(300)},16,L,3,A,0,"${tsplEsc(it.sku)}"`);
+    if (fields.sku && it.sku) lines.push(`TEXT ${x(300)},104,"ROMAN.TTF",0,4,4,"${tsplEsc(it.sku)}"`);
     lines.push(`PRINT 1,${q}`);
   });
   return lines.join('\r\n') + '\r\n';
@@ -683,8 +688,11 @@ async function printTagsHtml(items, fields, copies) {
   const oneTag = (it, qr) => {
     const wt = it.gross_weight != null ? Number(it.gross_weight).toFixed(3) : '';
     const sub = it.subcategory || it.category || '';
+    // Blank tail on the LEFT, printable panel on the RIGHT — matches the raw
+    // TSPL layout and the physical label.
     return `
       <div class="tag">
+        <div class="tag-tail"></div>
         <div class="tag-panel">
           ${fields.logo ? `<img src="${logoSrc}" alt="" class="tag-logo" />` : ''}
           <div class="tag-info">
@@ -699,7 +707,6 @@ async function printTagsHtml(items, fields, copies) {
             ${fields.sku && it.sku ? `<span class="tag-sku">${esc(it.sku)}</span>` : ''}
           </div>
         </div>
-        <div class="tag-tail"></div>
       </div>`;
   };
 
