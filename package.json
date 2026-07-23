@@ -21,7 +21,6 @@
     "leaflet": "^1.9.4",
     "lenis": "^1.1.14",
     "qrcode": "^1.5.4",
-    "qz-tray": "^2.2.4",
     "razorpay": "^2.9.6"
   },
   "devDependencies": {

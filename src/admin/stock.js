@@ -414,113 +414,84 @@ function saveTagFields(fields) {
 // talks to over a websocket; it streams the raw TSPL (which itself sets
 // SIZE 92mm,15mm) straight to the printer by name, with no dialog and the exact
 // label size on Windows *and* Mac. Requires QZ Tray installed + running.
-// The client library is self-hosted (public/qz-tray.js) so it works on any
-// machine even with no internet / when a CDN is blocked.
-const QZ_SRC = '/qz-tray.js';
-const QZ_PRINTER_KEY = 'kps_label_printer';
-
-let qzScriptPromise = null;
-function loadQz() {
-  if (typeof window !== 'undefined' && window.qz) return Promise.resolve(window.qz);
-  if (!qzScriptPromise) {
-    qzScriptPromise = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = QZ_SRC;
-      s.async = true;
-      s.onload = () => (window.qz ? resolve(window.qz) : reject(new Error('qz-missing')));
-      s.onerror = () => reject(new Error('qz-load'));
-      document.head.appendChild(s);
-    });
-  }
-  return qzScriptPromise;
-}
-
-// Connect (once) in unsigned mode. IMPORTANT: we do NOT override the security
-// promises — qz-tray already defaults to unsigned (certHandler rejects,
-// signatureFactory resolves empty), which is exactly what an unsigned site
-// needs. Overriding the cert promise to resolve() sends an invalid/undefined
-// certificate and breaks the handshake (connects, but calls return nothing).
-// QZ Tray shows a one-time "allow" prompt on the desktop. Throws 'qz-down' if
-// the helper app isn't running.
+// ---- KPS Print Relay client ------------------------------------------------
+// Direct-to-printer path uses our own tiny local relay instead of a browser
+// print dialog or a third-party helper:
 //
-// A single shared connect promise is kept so concurrent callers (printer
-// discovery + the print button) await the SAME handshake instead of racing.
-// This matters because qz.websocket.isActive() is already true while the socket
-// is only CONNECTING — before the version handshake has populated
-// connection.semver. Printing in that window makes qz.print() throw
-// "Cannot read properties of undefined (reading '0')" (it reads semver[0]).
-let qzConnectPromise = null;
+//   [ Admin web UI ] --fetch()--> [ KPS Print Relay (localhost) ] --> [ printer ]
+//
+// The relay is a zero-dependency Node script that runs on the store computer
+// (tools/kps-print-relay/relay.js). It listens on 127.0.0.1:17777, exposes the
+// installed printers, and pipes raw TSPL/ZPL/EPL straight to the OS spooler in
+// RAW mode — so the label prints at its true size with no A4/system dialog.
+//
+// Browsers treat http://127.0.0.1 as a trustworthy origin even from an HTTPS
+// page, so fetch() from the live site to the relay is allowed. The relay sends
+// permissive CORS + Private-Network-Access headers to satisfy Chrome.
+const PRINTER_KEY = 'kps_label_printer';
+const RELAY_BASE = 'http://127.0.0.1:17777';
 
-function qzReady(qz) {
-  return !!(qz.websocket.isActive() && qz.websocket.connection && qz.websocket.connection.semver);
+async function relayFetch(path, options = {}, timeoutMs = 4000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${RELAY_BASE}${path}`, { ...options, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function qzConnect() {
-  const qz = await loadQz();
-  if (qzReady(qz)) return qz;
-  if (!qzConnectPromise) {
-    qzConnectPromise = (async () => {
-      if (!qz.websocket.isActive()) {
-        await qz.websocket.connect({ retries: 1, delay: 1 });
-      }
-      // Ensure the version handshake finished so semver is populated before any
-      // print/list call runs (guards the CONNECTING race described above).
-      for (let i = 0; i < 60 && !(qz.websocket.connection && qz.websocket.connection.semver); i++) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
-      if (!qzReady(qz)) throw new Error('qz-handshake');
-    })();
-  }
+// Returns { os, printers, version } when the relay is reachable, else throws
+// 'relay-down'.
+async function relayStatus() {
+  let res;
   try {
-    await qzConnectPromise;
+    res = await relayFetch('/status', { method: 'GET' }, 3000);
   } catch {
-    qzConnectPromise = null;
-    throw new Error('qz-down');
+    throw new Error('relay-down');
   }
-  return qz;
+  if (!res.ok) throw new Error('relay-down');
+  try {
+    const body = await res.json();
+    return {
+      os: body.os || '',
+      version: body.version || '',
+      printers: Array.isArray(body.printers)
+        ? body.printers.map((p) => (typeof p === 'string' ? p : p && p.name)).filter(Boolean)
+        : [],
+    };
+  } catch {
+    throw new Error('relay-down');
+  }
 }
 
-// Returns the list of printer names QZ can see. `printers.find()` with no query
-// is the documented, stable way to list ALL printers (returns an array of name
-// strings) — unlike `printers.detail`, whose object shape varies by QZ Tray
-// version. Falls back to the default printer if the list somehow comes back
-// empty.
-async function qzListPrinters() {
-  const qz = await qzConnect();
-  let list = [];
+// Sends raw command text to a named printer via the relay. Throws with a
+// human-readable message on failure.
+async function relayPrintRaw(printerName, data) {
+  let res;
   try {
-    const res = await qz.printers.find();
-    list = Array.isArray(res) ? res : res != null ? [res] : [];
-  } catch {
-    /* fall through to default below */
+    res = await relayFetch(
+      '/print',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printer: printerName, data }),
+      },
+      15000,
+    );
+  } catch (err) {
+    throw new Error(err && err.name === 'AbortError' ? 'The relay did not respond (timed out).' : 'relay-down');
   }
-  list = list.map((p) => (typeof p === 'string' ? p : p && (p.name || p.printer))).filter(Boolean);
-  if (!list.length) {
-    try {
-      const def = await qz.printers.getDefault();
-      const name = typeof def === 'string' ? def : def && (def.name || def.printer);
-      if (name) list = [name];
-    } catch {
-      /* none available */
-    }
-  }
-  return list;
-}
-
-async function qzPrintRaw(printerName, data) {
-  const qz = await qzConnect();
-  // Resolve to the exact installed printer name where possible (QZ does
-  // substring matching); otherwise use the name the user typed as-is.
-  let target = printerName;
+  let body = null;
   try {
-    const found = await qz.printers.find(printerName);
-    if (typeof found === 'string' && found) target = found;
-    else if (Array.isArray(found) && found.length) target = found[0];
+    body = await res.json();
   } catch {
-    /* not found / listing unsupported — fall back to the typed name as-is */
+    /* non-JSON response */
   }
-  const config = qz.configs.create(target, { encoding: 'ISO-8859-1' });
-  await qz.print(config, [{ type: 'raw', format: 'command', flavor: 'plain', data }]);
+  if (!res.ok || !(body && body.ok)) {
+    throw new Error((body && (body.error || body.message)) || `Relay returned HTTP ${res.status}`);
+  }
 }
 
 const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
@@ -666,15 +637,15 @@ async function printTagsHtml(items, fields, copies) {
 
 // ---- Print dialog ----------------------------------------------------------
 // Lets the user choose which details to print and how many copies, then either
-// streams raw TSPL straight to the label printer via QZ Tray (exact size, no
-// dialog, Windows + Mac) or falls back to the system print dialog. Same for
-// admin and staff.
+// streams raw TSPL straight to the label printer via the local KPS Print Relay
+// (exact size, no dialog, Windows + Mac) or falls back to the system print
+// dialog. Same for admin and staff.
 function openTagPrintDialog(items) {
   if (!items || !items.length) return;
   const fields = loadTagFields();
   const savedPrinter = (() => {
     try {
-      return localStorage.getItem(QZ_PRINTER_KEY) || '';
+      return localStorage.getItem(PRINTER_KEY) || '';
     } catch {
       return '';
     }
@@ -707,7 +678,7 @@ function openTagPrintDialog(items) {
           <h3 class="tp-sec-h">Label printer (direct)</h3>
           <input id="tpPrinter" class="cat-select" list="tpPrinterList" autocomplete="off" placeholder="Detecting…" />
           <datalist id="tpPrinterList"></datalist>
-          <p class="tp-note" id="tpNote">Looking for the QZ Tray helper…</p>
+          <p class="tp-note" id="tpNote">Looking for the KPS Print Relay…</p>
         </div>
         <p class="tp-status" id="tpStatus"></p>
       </div>
@@ -748,41 +719,33 @@ function openTagPrintDialog(items) {
     }),
   );
 
-  // Discover printers via QZ Tray. As long as QZ is connected we ENABLE direct
-  // printing even if the printer list comes back empty — the user can type the
-  // exact printer name (e.g. "TSC TE244") and print, which also side-steps the
-  // Windows "A4" issue since raw TSPL sets the label size itself.
+  // Discover printers via the local KPS Print Relay. As long as the relay is
+  // reachable we ENABLE direct printing even if the printer list is empty — the
+  // user can type the exact OS printer name and print. Raw TSPL sets the label
+  // size, so there is no A4/system dialog involved.
   (async () => {
+    let info;
     try {
-      await qzConnect();
-    } catch (err) {
-      printerSel.placeholder = 'QZ Tray not detected';
+      info = await relayStatus();
+    } catch {
+      printerSel.placeholder = 'Print relay not running';
       setNote(
-        String(err?.message) === 'qz-load'
-          ? 'Could not load the QZ helper script. Refresh the page, or use the system print dialog below.'
-          : 'QZ Tray helper isn’t running. Install it once from qz.io and open it (it sits in the tray) — or use the system print dialog below.',
+        'KPS Print Relay isn’t running on this computer. Start it (see tools/kps-print-relay) to print tags directly — or use the system print dialog below.',
         'warn',
       );
       return;
     }
-    // Connected — direct printing is available regardless of the list result.
     printBtn.disabled = false;
     printerSel.placeholder = 'Printer name (e.g. TSC TE244)';
-    let printers = [];
-    let listErr = '';
-    try {
-      printers = await qzListPrinters();
-    } catch (err) {
-      listErr = String(err?.message || err);
-    }
+    const printers = info.printers || [];
     if (printers.length) {
       printerList.innerHTML = printers.map((p) => `<option value="${esc(p)}"></option>`).join('');
       printerSel.value = savedPrinter && printers.includes(savedPrinter) ? savedPrinter : savedPrinter || printers[0];
-      setNote(`QZ Tray connected — ${printers.length} printer(s) found. Pick or type your label printer, then print. (First time, click “Allow” on the QZ Tray desktop pop-up.)`, 'ok');
+      setNote(`Print relay connected (${esc(info.os || 'OS')}) — ${printers.length} printer(s) found. Pick or type your label printer, then print.`, 'ok');
     } else {
       printerSel.value = savedPrinter || '';
       setNote(
-        `QZ Tray connected, but it returned no printer list${listErr ? ` (${listErr})` : ''}. Type your printer name exactly as it appears in Windows (e.g. “TSC TE244”) and click Print.`,
+        'Print relay connected, but no printers were listed. Type your printer name exactly as it appears in the OS and click Print.',
         'warn',
       );
     }
@@ -803,29 +766,22 @@ function openTagPrintDialog(items) {
       return;
     }
     try {
-      localStorage.setItem(QZ_PRINTER_KEY, printerName);
+      localStorage.setItem(PRINTER_KEY, printerName);
     } catch {
       /* ignore */
     }
     printBtn.disabled = true;
     sysBtn.disabled = true;
     say(`Sending to “${printerName}”…`);
-    // If QZ Tray is waiting on its first-time desktop "Allow" prompt the print
-    // promise stays pending — nudge the user instead of looking frozen.
-    const stallHint = setTimeout(() => {
-      say(`Still sending… If QZ Tray shows an “Allow” pop-up on your desktop, click Allow (tick “Remember”).`, 'warn');
-    }, 6000);
     try {
-      await qzPrintRaw(printerName, buildTspl(items, fields, copies()));
-      clearTimeout(stallHint);
+      await relayPrintRaw(printerName, buildTspl(items, fields, copies()));
       say('Sent to the printer ✓', 'ok');
       setTimeout(close, 900);
     } catch (err) {
-      clearTimeout(stallHint);
       const code = String(err?.message || '');
       say(
-        code === 'qz-down'
-          ? 'Lost the connection to QZ Tray. Make sure the QZ Tray app is running, then try again.'
+        code === 'relay-down'
+          ? 'Lost the connection to the KPS Print Relay. Make sure it’s still running, then try again.'
           : `Could not print directly (${code || 'error'}). Use the system print dialog below.`,
         'warn',
       );
