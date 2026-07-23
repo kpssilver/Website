@@ -979,6 +979,18 @@
 .tag-qr { width: 11mm; height: 11mm; display: block; }
 .tag-sku { max-width: 13mm; font-size: 5.6pt; font-weight: 800; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---- Tag print dialog ------------------------------------------------------ */
+.tp-body { padding: 1.1rem 1.3rem 0.4rem; }
+.tp-sec { margin-bottom: 1rem; }
+.tp-sec-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-rose-hi); margin: 0 0 0.6rem; font-weight: 700; }
+.tp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
+.tp-row { display: flex; align-items: flex-end; }
+.tp-copies { max-width: 200px; }
+.tp-copies input { width: 100%; }
+.tp-status { min-height: 1.1rem; margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--a-text-dim); }
+.tp-status.is-ok { color: #6ee7a0; }
+.tp-status.is-warn { color: var(--a-gold); }
+
 /* ---- Manage lists (categories / suppliers / collections) ------------------- */
 .ml-body { padding: 1.1rem 1.3rem 1.3rem; overflow-y: auto; max-height: 62vh; }
 .ml-actions { display: flex; justify-content: flex-end; margin-bottom: 0.9rem; }

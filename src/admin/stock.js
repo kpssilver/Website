@@ -368,56 +368,172 @@ const blankItem = () => ({
 // Sterling silver purity shown on the tag (matches the old label's fixed 92.5).
 const TAG_PURITY = '92.5';
 
-async function printTags(items) {
-  document.querySelectorAll('.print-sheet').forEach((n) => n.remove());
+// Which details can appear on the tag, and which are ticked by default.
+// (Logo, QR code and Weight are on by default per the shop's preference.)
+const TAG_FIELDS = [
+  { key: 'logo', label: 'Logo', on: true },
+  { key: 'qr', label: 'QR code', on: true },
+  { key: 'weight', label: 'Weight', on: true },
+  { key: 'brand', label: 'Brand name', on: false },
+  { key: 'purity', label: 'Purity (92.5)', on: false },
+  { key: 'design', label: 'Design number', on: false },
+  { key: 'subcategory', label: 'Sub-category', on: false },
+  { key: 'sku', label: 'SKU text', on: false },
+];
+const TAG_FIELDS_KEY = 'kps_tag_fields';
 
-  // QR generation is async — build every SKU code first, then lay out the tags.
+function loadTagFields() {
+  const def = {};
+  TAG_FIELDS.forEach((f) => (def[f.key] = f.on));
+  try {
+    const saved = JSON.parse(localStorage.getItem(TAG_FIELDS_KEY) || '{}');
+    return { ...def, ...saved };
+  } catch {
+    return def;
+  }
+}
+function saveTagFields(fields) {
+  try {
+    localStorage.setItem(TAG_FIELDS_KEY, JSON.stringify(fields));
+  } catch {
+    /* ignore quota / private-mode errors */
+  }
+}
+
+// ---- Direct-to-printer path (Web Serial + TSPL) ----------------------------
+// Thermal label printers speak TSPL. Web Serial lets us stream the exact same
+// commands the old app used straight to a USB/serial printer — no OS print
+// dialog. Works in Chrome/Edge over HTTPS after a one-time permission grant.
+const serialSupported = () => typeof navigator !== 'undefined' && 'serial' in navigator;
+
+// CP1252/latin1 byte stream (TSPL is not UTF-8).
+function toLatin1(str) {
+  const out = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) out[i] = str.charCodeAt(i) & 0xff;
+  return out;
+}
+const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
+
+function buildTspl(items, fields, copies) {
+  const q = Math.max(1, Math.round(copies) || 1);
+  const head = [
+    'SIZE 100 mm,15 mm',
+    'GAP 3 mm,0 mm',
+    'DIRECTION 0,0',
+    'REFERENCE 0,0',
+    'OFFSET 0 mm',
+    'SPEED 3',
+    'DENSITY 10',
+    'SET RIBBON ON',
+    'SET TEAR ON',
+  ];
+  const lines = [];
+  items.forEach((it) => {
+    lines.push(...head, 'CLS');
+    if (fields.logo) lines.push('PUTBMP 360,7,"KPS.bmp"');
+    else if (fields.brand) lines.push('TEXT 360,20,"ROMAN.TTF",0,8,8,"KPS SILVER"');
+    if (fields.brand && fields.logo) lines.push('TEXT 360,95,"ROMAN.TTF",0,5,5,"KPS SILVER"');
+    if (fields.weight && it.gross_weight != null)
+      lines.push(`TEXT 510,15,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
+    if (fields.purity) lines.push(`TEXT 510,45,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
+    if (fields.design && it.design_no) lines.push(`TEXT 510,68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
+    if (fields.subcategory && (it.subcategory || it.category))
+      lines.push(`TEXT 510,92,"ROMAN.TTF",0,8,8,"${tsplEsc(it.subcategory || it.category)}"`);
+    if (fields.qr && it.sku) lines.push(`QRCODE 690,15,L,3,A,0,M2,S7,"${tsplEsc(it.sku)}"`);
+    if (fields.sku && it.sku) lines.push(`TEXT 690,118,"ROMAN.TTF",0,5,5,"${tsplEsc(it.sku)}"`);
+    lines.push(`PRINT 1,${q}`);
+  });
+  return lines.join('\r\n') + '\r\n';
+}
+
+// Returns a serial port (reusing a previously authorised one), prompting the
+// user to pick a printer if none is remembered. Resolves null if the user
+// cancels or no device is available.
+async function getLabelPort() {
+  const ports = await navigator.serial.getPorts();
+  if (ports.length) return ports[0];
+  try {
+    return await navigator.serial.requestPort();
+  } catch {
+    return null; // NotFoundError (nothing to pick) or user cancelled
+  }
+}
+
+// Streams TSPL to the connected printer. Throws a tagged Error the dialog can
+// translate into a friendly message.
+async function printTagsSerial(items, fields, copies) {
+  if (!serialSupported()) throw new Error('unsupported');
+  const port = await getLabelPort();
+  if (!port) throw new Error('noport');
+  try {
+    await port.open({ baudRate: 9600 });
+  } catch (err) {
+    throw new Error('openfail:' + (err?.message || err));
+  }
+  try {
+    const writer = port.writable.getWriter();
+    await writer.write(toLatin1(buildTspl(items, fields, copies)));
+    writer.releaseLock();
+  } finally {
+    try {
+      await port.close();
+    } catch {
+      /* already closed */
+    }
+  }
+}
+
+// ---- Browser fallback (system print dialog on the 100×15mm label) ----------
+async function printTagsHtml(items, fields, copies) {
+  document.querySelectorAll('.print-sheet').forEach((n) => n.remove());
+  const q = Math.max(1, Math.round(copies) || 1);
+
   const qrs = await Promise.all(
     items.map((it) =>
-      QRCode.toDataURL(String(it.sku || ''), { margin: 0, width: 240, errorCorrectionLevel: 'M' }).catch(() => ''),
+      fields.qr
+        ? QRCode.toDataURL(String(it.sku || ''), { margin: 0, width: 240, errorCorrectionLevel: 'M' }).catch(() => '')
+        : Promise.resolve(''),
     ),
   );
 
   // Force the print dialog onto the 100mm × 15mm label instead of A4. Browsers
   // ignore `size` on a *named* @page, so we inject an unnamed @page rule for the
-  // duration of the print and remove it afterwards (keeps invoices/catalogues
-  // on A4). Identical for admin and staff since they share this code.
+  // duration of the print and remove it afterwards.
   const pageStyle = document.createElement('style');
   pageStyle.id = 'stk-tag-page';
   pageStyle.media = 'print';
   pageStyle.textContent = '@page { size: 100mm 15mm; margin: 0; }';
   document.head.appendChild(pageStyle);
 
-  const wrap = document.createElement('div');
-  wrap.className = 'print-sheet print-sheet--tags';
-  wrap.innerHTML = items
-    .map((it, i) => {
-      const wt = it.gross_weight != null ? Number(it.gross_weight).toFixed(3) : '';
-      const sub = it.subcategory || it.category || '';
-      return `
+  const oneTag = (it, qr) => {
+    const wt = it.gross_weight != null ? Number(it.gross_weight).toFixed(3) : '';
+    const sub = it.subcategory || it.category || '';
+    return `
       <div class="tag">
         <div class="tag-tail"></div>
         <div class="tag-head">
-          <img src="/favicon.svg" alt="" class="tag-logo" />
+          ${fields.logo ? '<img src="/favicon.svg" alt="" class="tag-logo" />' : ''}
           <div class="tag-info">
-            <span class="tag-brand">KPS SILVER</span>
-            ${wt ? `<span class="tag-wt">Wt: ${esc(wt)} g</span>` : ''}
-            <span class="tag-line">Purity: ${TAG_PURITY}</span>
-            ${it.design_no ? `<span class="tag-line">D.No: ${esc(it.design_no)}</span>` : ''}
-            ${sub ? `<span class="tag-line tag-sub">${esc(sub)}</span>` : ''}
+            ${fields.brand ? '<span class="tag-brand">KPS SILVER</span>' : ''}
+            ${fields.weight && wt ? `<span class="tag-wt">Wt: ${esc(wt)} g</span>` : ''}
+            ${fields.purity ? `<span class="tag-line">Purity: ${TAG_PURITY}</span>` : ''}
+            ${fields.design && it.design_no ? `<span class="tag-line">D.No: ${esc(it.design_no)}</span>` : ''}
+            ${fields.subcategory && sub ? `<span class="tag-line tag-sub">${esc(sub)}</span>` : ''}
           </div>
           <div class="tag-code">
-            ${qrs[i] ? `<img src="${qrs[i]}" alt="" class="tag-qr" />` : ''}
-            <span class="tag-sku">${esc(it.sku)}</span>
+            ${fields.qr && qr ? `<img src="${qr}" alt="" class="tag-qr" />` : ''}
+            ${fields.sku && it.sku ? `<span class="tag-sku">${esc(it.sku)}</span>` : ''}
           </div>
         </div>
       </div>`;
-    })
-    .join('');
+  };
+
+  const wrap = document.createElement('div');
+  wrap.className = 'print-sheet print-sheet--tags';
+  wrap.innerHTML = items.map((it, i) => oneTag(it, qrs[i]).repeat(q)).join('');
   document.body.appendChild(wrap);
 
-  // Wait for the QR + logo images to finish decoding before opening the print
-  // dialog — otherwise they render blank on the label.
+  // Wait for QR + logo images to decode before opening the dialog.
   const imgs = [...wrap.querySelectorAll('img')];
   await Promise.all(
     imgs.map((img) =>
@@ -437,10 +553,110 @@ async function printTags(items) {
   };
   window.addEventListener('afterprint', cleanup);
   window.print();
-  // Safety net if `afterprint` never fires (some mobile browsers).
   setTimeout(() => {
     if (document.getElementById('stk-tag-page')) cleanup();
   }, 1500);
+}
+
+// ---- Print dialog ----------------------------------------------------------
+// Lets the user choose which details to print and how many copies, then either
+// streams directly to a connected label printer or falls back to the system
+// dialog. Same behaviour for admin and staff.
+function openTagPrintDialog(items) {
+  if (!items || !items.length) return;
+  const fields = loadTagFields();
+
+  const holder = document.createElement('div');
+  holder.innerHTML = `
+  <div class="pm-modal-backdrop" id="tpBackdrop" style="z-index:130">
+    <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="Print tag">
+      <div class="pm-modal-head">
+        <h2>Print tag${items.length > 1 ? `s — ${items.length} items` : ''}</h2>
+        <button class="pm-x" id="tpClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="tp-body">
+        <div class="tp-sec">
+          <h3 class="tp-sec-h">Details to print</h3>
+          <div class="tp-fields">
+            ${TAG_FIELDS.map(
+              (f) =>
+                `<label class="cat-toggle"><input type="checkbox" data-tf="${f.key}" ${fields[f.key] ? 'checked' : ''}/> ${esc(f.label)}</label>`,
+            ).join('')}
+          </div>
+        </div>
+        <div class="tp-sec tp-row">
+          <label class="pm-lbl tp-copies">Copies of each tag
+            <input id="tpCopies" type="number" min="1" step="1" value="1" />
+          </label>
+        </div>
+        <p class="tp-status" id="tpStatus"></p>
+      </div>
+      <div class="pm-form-actions">
+        <button type="button" class="dash-btn dash-btn--ghost" id="tpSystem">System print dialog</button>
+        <button type="button" class="dash-btn" id="tpPrint">Print directly</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(holder);
+
+  const status = holder.querySelector('#tpStatus');
+  const copiesEl = holder.querySelector('#tpCopies');
+  const printBtn = holder.querySelector('#tpPrint');
+  const sysBtn = holder.querySelector('#tpSystem');
+  const close = () => holder.remove();
+  const say = (msg, kind = '') => {
+    status.textContent = msg;
+    status.className = `tp-status${kind ? ` is-${kind}` : ''}`;
+  };
+  const copies = () => Math.max(1, Math.round(Number(copiesEl.value) || 1));
+
+  holder.querySelector('#tpClose').addEventListener('click', close);
+  holder.querySelector('#tpBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'tpBackdrop') close();
+  });
+  holder.querySelectorAll('[data-tf]').forEach((cb) =>
+    cb.addEventListener('change', () => {
+      fields[cb.dataset.tf] = cb.checked;
+      saveTagFields(fields);
+    }),
+  );
+
+  sysBtn.addEventListener('click', async () => {
+    sysBtn.disabled = true;
+    printBtn.disabled = true;
+    say('Opening the system print dialog…');
+    await printTagsHtml(items, fields, copies());
+    close();
+  });
+
+  printBtn.addEventListener('click', async () => {
+    if (!serialSupported()) {
+      say('Direct printing needs Chrome or Edge on a computer. Opening the system print dialog instead…', 'warn');
+      printBtn.disabled = true;
+      await printTagsHtml(items, fields, copies());
+      setTimeout(close, 400);
+      return;
+    }
+    printBtn.disabled = true;
+    sysBtn.disabled = true;
+    say('Sending to the label printer…');
+    try {
+      await printTagsSerial(items, fields, copies());
+      say('Sent to the printer ✓', 'ok');
+      setTimeout(close, 900);
+    } catch (err) {
+      const code = String(err?.message || '');
+      if (code === 'noport') {
+        say('No label printer connected. Plug in your USB label printer and pick it when prompted — or use the system print dialog.', 'warn');
+      } else if (code.startsWith('openfail')) {
+        say('Found a printer but could not open it (it may be in use by another app). Try again, or use the system print dialog.', 'warn');
+      } else {
+        say('Could not print directly. Use the system print dialog below.', 'warn');
+      }
+      printBtn.disabled = false;
+      sysBtn.disabled = false;
+    }
+  });
 }
 
 // ---- Entry -----------------------------------------------------------------
@@ -684,7 +900,7 @@ export async function renderStock(root, session, opts = {}) {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const it = items.find((x) => x.id === btn.dataset.tag);
-        if (it) printTags([it]);
+        if (it) openTagPrintDialog([it]);
       }),
     );
     region.querySelectorAll('[data-sell]').forEach((btn) =>
@@ -1079,7 +1295,7 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
       close();
       if (onSaved) await onSaved();
       // Offer to print the tag right after adding a new item.
-      if (saved && confirm(`Added ${saved.sku} — it's now live in Products too. Print its tag now?`)) printTags([saved]);
+      if (saved && confirm(`Added ${saved.sku} — it's now live in Products too. Print its tag now?`)) openTagPrintDialog([saved]);
     } catch (err) {
       console.error('[KPS] stock save failed:', err);
       msg.textContent = `Save failed: ${err.message}`;
