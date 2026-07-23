@@ -361,12 +361,18 @@ const blankItem = () => ({
 });
 
 // ---- Tag printing ----------------------------------------------------------
-// Recreates the shop's jewellery butterfly tag: a 100mm × 15mm thermal label
-// whose printable "head" (right ~56mm) carries the KPS logo, weight, purity,
-// design number, sub-category and a QR code of the SKU. The left ~44mm "tail"
-// stays blank so it can wrap around the piece (matching the old TSPL layout).
+// The jewellery "butterfly" tag is a 92mm × 15mm die-cut label. Only the 52mm ×
+// 15mm rectangle at one end is printable — the remaining ~40mm is the thin
+// string/tail that wraps around the piece and MUST stay blank. We print the KPS
+// logo, weight, purity, design number, sub-category and a QR of the SKU inside
+// that 52mm panel only.
 // Sterling silver purity shown on the tag (matches the old label's fixed 92.5).
 const TAG_PURITY = '92.5';
+// Physical label geometry (mm).
+const TAG_W = 92;
+const TAG_H = 15;
+const TAG_PANEL_W = 52; // printable rectangle
+const TAG_TAIL_W = TAG_W - TAG_PANEL_W; // blank string area
 
 // Which details can appear on the tag, and which are ticked by default.
 // (Logo, QR code and Weight are on by default per the shop's preference.)
@@ -414,10 +420,12 @@ function toLatin1(str) {
 }
 const tsplEsc = (s) => String(s ?? '').replace(/["\\]/g, ' ').replace(/[\r\n]/g, ' ');
 
+// All X coordinates stay inside the left 52mm panel (0–416 dots at 8 dots/mm);
+// the remaining ~40mm (the string/tail) is left blank.
 function buildTspl(items, fields, copies) {
   const q = Math.max(1, Math.round(copies) || 1);
   const head = [
-    'SIZE 100 mm,15 mm',
+    `SIZE ${TAG_W} mm,${TAG_H} mm`,
     'GAP 3 mm,0 mm',
     'DIRECTION 0,0',
     'REFERENCE 0,0',
@@ -430,17 +438,17 @@ function buildTspl(items, fields, copies) {
   const lines = [];
   items.forEach((it) => {
     lines.push(...head, 'CLS');
-    if (fields.logo) lines.push('PUTBMP 360,7,"KPS.bmp"');
-    else if (fields.brand) lines.push('TEXT 360,20,"ROMAN.TTF",0,8,8,"KPS SILVER"');
-    if (fields.brand && fields.logo) lines.push('TEXT 360,95,"ROMAN.TTF",0,5,5,"KPS SILVER"');
+    if (fields.logo) lines.push('PUTBMP 12,10,"KPS.bmp"');
+    else if (fields.brand) lines.push('TEXT 16,20,"ROMAN.TTF",0,7,7,"KPS SILVER"');
+    if (fields.brand && fields.logo) lines.push('TEXT 12,98,"ROMAN.TTF",0,4,4,"KPS SILVER"');
     if (fields.weight && it.gross_weight != null)
-      lines.push(`TEXT 510,15,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
-    if (fields.purity) lines.push(`TEXT 510,45,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
-    if (fields.design && it.design_no) lines.push(`TEXT 510,68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
+      lines.push(`TEXT 96,12,"ROMAN.TTF",0,9,9,"Wt: ${Number(it.gross_weight).toFixed(3)} g"`);
+    if (fields.purity) lines.push(`TEXT 96,44,"ROMAN.TTF",0,7,7,"Purity: ${TAG_PURITY}"`);
+    if (fields.design && it.design_no) lines.push(`TEXT 96,68,"ROMAN.TTF",0,6,6,"D.No: ${tsplEsc(it.design_no)}"`);
     if (fields.subcategory && (it.subcategory || it.category))
-      lines.push(`TEXT 510,92,"ROMAN.TTF",0,8,8,"${tsplEsc(it.subcategory || it.category)}"`);
-    if (fields.qr && it.sku) lines.push(`QRCODE 690,15,L,3,A,0,M2,S7,"${tsplEsc(it.sku)}"`);
-    if (fields.sku && it.sku) lines.push(`TEXT 690,118,"ROMAN.TTF",0,5,5,"${tsplEsc(it.sku)}"`);
+      lines.push(`TEXT 96,92,"ROMAN.TTF",0,7,7,"${tsplEsc(it.subcategory || it.category)}"`);
+    if (fields.qr && it.sku) lines.push(`QRCODE 300,16,L,3,A,0,"${tsplEsc(it.sku)}"`);
+    if (fields.sku && it.sku) lines.push(`TEXT 300,104,"ROMAN.TTF",0,4,4,"${tsplEsc(it.sku)}"`);
     lines.push(`PRINT 1,${q}`);
   });
   return lines.join('\r\n') + '\r\n';
@@ -483,10 +491,34 @@ async function printTagsSerial(items, fields, copies) {
   }
 }
 
-// ---- Browser fallback (system print dialog on the 100×15mm label) ----------
+// ---- Browser fallback (system print dialog on the 92×15mm label) -----------
+// We print from a self-contained hidden iframe with its OWN document + @page.
+// This guarantees (a) the exact 92×15mm page size and (b) that none of the
+// dashboard/app markup ever prints — the old approach let the A4 page and other
+// details leak through.
+const TAG_PRINT_CSS = `
+  @page { size: ${TAG_W}mm ${TAG_H}mm; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .tag { width: ${TAG_W}mm; height: ${TAG_H}mm; display: flex; align-items: stretch; overflow: hidden; page-break-after: always; }
+  .tag:last-child { page-break-after: auto; }
+  /* Printable 52mm panel (content) then the blank 40mm string/tail. */
+  .tag-panel { width: ${TAG_PANEL_W}mm; height: ${TAG_H}mm; display: flex; align-items: center; gap: 1.4mm; padding: 0.6mm 1.4mm; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .tag-tail { width: ${TAG_TAIL_W}mm; }
+  .tag-logo { flex: 0 0 auto; width: 8mm; height: 8mm; object-fit: contain; }
+  .tag-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+  .tag-brand { font-size: 5pt; font-weight: 800; letter-spacing: 0.06em; }
+  .tag-wt { font-size: 8pt; font-weight: 800; }
+  .tag-line { font-size: 6pt; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag-sub { font-style: italic; }
+  .tag-code { flex: 0 0 auto; width: 12.5mm; display: flex; flex-direction: column; align-items: center; gap: 0.3mm; }
+  .tag-qr { width: 11mm; height: 11mm; display: block; }
+  .tag-sku { font-size: 5pt; font-weight: 800; max-width: 12.5mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+`;
+
 async function printTagsHtml(items, fields, copies) {
-  document.querySelectorAll('.print-sheet').forEach((n) => n.remove());
   const q = Math.max(1, Math.round(copies) || 1);
+  const logoSrc = `${location.origin}/favicon.svg`;
 
   const qrs = await Promise.all(
     items.map((it) =>
@@ -496,23 +528,13 @@ async function printTagsHtml(items, fields, copies) {
     ),
   );
 
-  // Force the print dialog onto the 100mm × 15mm label instead of A4. Browsers
-  // ignore `size` on a *named* @page, so we inject an unnamed @page rule for the
-  // duration of the print and remove it afterwards.
-  const pageStyle = document.createElement('style');
-  pageStyle.id = 'stk-tag-page';
-  pageStyle.media = 'print';
-  pageStyle.textContent = '@page { size: 100mm 15mm; margin: 0; }';
-  document.head.appendChild(pageStyle);
-
   const oneTag = (it, qr) => {
     const wt = it.gross_weight != null ? Number(it.gross_weight).toFixed(3) : '';
     const sub = it.subcategory || it.category || '';
     return `
       <div class="tag">
-        <div class="tag-tail"></div>
-        <div class="tag-head">
-          ${fields.logo ? '<img src="/favicon.svg" alt="" class="tag-logo" />' : ''}
+        <div class="tag-panel">
+          ${fields.logo ? `<img src="${logoSrc}" alt="" class="tag-logo" />` : ''}
           <div class="tag-info">
             ${fields.brand ? '<span class="tag-brand">KPS SILVER</span>' : ''}
             ${fields.weight && wt ? `<span class="tag-wt">Wt: ${esc(wt)} g</span>` : ''}
@@ -525,16 +547,25 @@ async function printTagsHtml(items, fields, copies) {
             ${fields.sku && it.sku ? `<span class="tag-sku">${esc(it.sku)}</span>` : ''}
           </div>
         </div>
+        <div class="tag-tail"></div>
       </div>`;
   };
 
-  const wrap = document.createElement('div');
-  wrap.className = 'print-sheet print-sheet--tags';
-  wrap.innerHTML = items.map((it, i) => oneTag(it, qrs[i]).repeat(q)).join('');
-  document.body.appendChild(wrap);
+  const body = items.map((it, i) => oneTag(it, qrs[i]).repeat(q)).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${TAG_PRINT_CSS}</style></head><body>${body}</body></html>`;
 
-  // Wait for QR + logo images to decode before opening the dialog.
-  const imgs = [...wrap.querySelectorAll('img')];
+  // Hidden, isolated print surface.
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+  const idoc = iframe.contentWindow.document;
+  idoc.open();
+  idoc.write(html);
+  idoc.close();
+
+  // Wait for QR + logo images inside the iframe to decode before printing.
+  const imgs = [...idoc.querySelectorAll('img')];
   await Promise.all(
     imgs.map((img) =>
       img.complete && img.naturalWidth
@@ -546,16 +577,17 @@ async function printTagsHtml(items, fields, copies) {
     ),
   );
 
-  const cleanup = () => {
-    wrap.remove();
-    pageStyle.remove();
-    window.removeEventListener('afterprint', cleanup);
+  let removed = false;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    iframe.remove();
   };
-  window.addEventListener('afterprint', cleanup);
-  window.print();
-  setTimeout(() => {
-    if (document.getElementById('stk-tag-page')) cleanup();
-  }, 1500);
+  iframe.contentWindow.onafterprint = () => setTimeout(remove, 500);
+  iframe.contentWindow.focus();
+  iframe.contentWindow.print();
+  // Safety net if afterprint never fires.
+  setTimeout(remove, 60000);
 }
 
 // ---- Print dialog ----------------------------------------------------------
