@@ -435,15 +435,15 @@ function loadQz() {
   return qzScriptPromise;
 }
 
-// Connect (once) in unsigned mode — QZ Tray shows a one-time "allow" prompt on
-// the desktop. Throws 'qz-down' if the helper app isn't running.
+// Connect (once) in unsigned mode. IMPORTANT: we do NOT override the security
+// promises — qz-tray already defaults to unsigned (certHandler rejects,
+// signatureFactory resolves empty), which is exactly what an unsigned site
+// needs. Overriding the cert promise to resolve() sends an invalid/undefined
+// certificate and breaks the handshake (connects, but calls return nothing).
+// QZ Tray shows a one-time "allow" prompt on the desktop. Throws 'qz-down' if
+// the helper app isn't running.
 async function qzConnect() {
   const qz = await loadQz();
-  if (!qz.security.__kpsInit) {
-    qz.security.setCertificatePromise((resolve) => resolve());
-    qz.security.setSignaturePromise(() => (resolve) => resolve());
-    qz.security.__kpsInit = true;
-  }
   if (!qz.websocket.isActive()) {
     try {
       await qz.websocket.connect({ retries: 1, delay: 1 });
@@ -483,7 +483,16 @@ async function qzListPrinters() {
 
 async function qzPrintRaw(printerName, data) {
   const qz = await qzConnect();
-  const config = qz.configs.create(printerName, { encoding: 'ISO-8859-1' });
+  // Resolve to the exact installed printer name where possible (QZ does
+  // substring matching); otherwise use the name the user typed as-is.
+  let target = printerName;
+  try {
+    const found = await qz.printers.find(printerName);
+    if (found) target = Array.isArray(found) ? found[0] : found;
+  } catch {
+    /* use the typed name */
+  }
+  const config = qz.configs.create(target, { encoding: 'ISO-8859-1' });
   await qz.print(config, [{ type: 'raw', format: 'command', flavor: 'plain', data }]);
 }
 
@@ -669,7 +678,8 @@ function openTagPrintDialog(items) {
         </div>
         <div class="tp-sec">
           <h3 class="tp-sec-h">Label printer (direct)</h3>
-          <select id="tpPrinter" class="cat-select"><option value="">Detecting QZ Tray…</option></select>
+          <input id="tpPrinter" class="cat-select" list="tpPrinterList" autocomplete="off" placeholder="Detecting…" />
+          <datalist id="tpPrinterList"></datalist>
           <p class="tp-note" id="tpNote">Looking for the QZ Tray helper…</p>
         </div>
         <p class="tp-status" id="tpStatus"></p>
@@ -686,6 +696,7 @@ function openTagPrintDialog(items) {
   const note = holder.querySelector('#tpNote');
   const copiesEl = holder.querySelector('#tpCopies');
   const printerSel = holder.querySelector('#tpPrinter');
+  const printerList = holder.querySelector('#tpPrinterList');
   const printBtn = holder.querySelector('#tpPrint');
   const sysBtn = holder.querySelector('#tpSystem');
   const close = () => holder.remove();
@@ -710,27 +721,41 @@ function openTagPrintDialog(items) {
     }),
   );
 
-  // Discover printers via QZ Tray (non-blocking; enables the direct button).
+  // Discover printers via QZ Tray. As long as QZ is connected we ENABLE direct
+  // printing even if the printer list comes back empty — the user can type the
+  // exact printer name (e.g. "TSC TE244") and print, which also side-steps the
+  // Windows "A4" issue since raw TSPL sets the label size itself.
   (async () => {
     try {
-      const printers = await qzListPrinters();
-      if (!printers.length) {
-        printerSel.innerHTML = '<option value="">No printers found</option>';
-        setNote('QZ Tray is running but no printers were found. Check the printer is installed in Windows/macOS.', 'warn');
-        return;
-      }
-      printerSel.innerHTML = printers
-        .map((p) => `<option value="${esc(p)}" ${p === savedPrinter ? 'selected' : ''}>${esc(p)}</option>`)
-        .join('');
-      printBtn.disabled = false;
-      setNote('QZ Tray connected. Pick your label printer, then “Print to label printer”.', 'ok');
+      await qzConnect();
     } catch (err) {
-      printerSel.innerHTML = '<option value="">QZ Tray not detected</option>';
-      const code = String(err?.message || '');
+      printerSel.placeholder = 'QZ Tray not detected';
       setNote(
-        code === 'qz-load'
-          ? 'Could not load the QZ helper script. Refresh the page, or use the system print dialog.'
-          : 'QZ Tray helper isn’t running. Install it once from qz.io and open it to print directly — or use the system print dialog below (choose your label paper size).',
+        String(err?.message) === 'qz-load'
+          ? 'Could not load the QZ helper script. Refresh the page, or use the system print dialog below.'
+          : 'QZ Tray helper isn’t running. Install it once from qz.io and open it (it sits in the tray) — or use the system print dialog below.',
+        'warn',
+      );
+      return;
+    }
+    // Connected — direct printing is available regardless of the list result.
+    printBtn.disabled = false;
+    printerSel.placeholder = 'Printer name (e.g. TSC TE244)';
+    let printers = [];
+    let listErr = '';
+    try {
+      printers = await qzListPrinters();
+    } catch (err) {
+      listErr = String(err?.message || err);
+    }
+    if (printers.length) {
+      printerList.innerHTML = printers.map((p) => `<option value="${esc(p)}"></option>`).join('');
+      printerSel.value = savedPrinter && printers.includes(savedPrinter) ? savedPrinter : savedPrinter || printers[0];
+      setNote(`QZ Tray connected — ${printers.length} printer(s) found. Pick or type your label printer, then print.`, 'ok');
+    } else {
+      printerSel.value = savedPrinter || '';
+      setNote(
+        `QZ Tray connected, but it returned no printer list${listErr ? ` (${listErr})` : ''}. Type your printer name exactly as it appears in Windows (e.g. “TSC TE244”) and click Print.`,
         'warn',
       );
     }
@@ -745,9 +770,9 @@ function openTagPrintDialog(items) {
   });
 
   printBtn.addEventListener('click', async () => {
-    const printerName = printerSel.value;
+    const printerName = printerSel.value.trim();
     if (!printerName) {
-      say('Pick a label printer first.', 'warn');
+      say('Type or pick a label printer name first (e.g. TSC TE244).', 'warn');
       return;
     }
     try {
