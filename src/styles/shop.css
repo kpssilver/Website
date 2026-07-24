@@ -47,6 +47,9 @@ body.shop-modal-open { overflow: hidden; }
 .shop-search-icon { position: absolute; right: clamp(1.7rem, 5.7vw, 3.7rem); display: inline-flex; align-items: center; color: var(--silver-dim); pointer-events: none; }
 .shop-search-clear { position: absolute; right: clamp(1.6rem, 5.6vw, 3.6rem); width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(255,255,255,.1); color: var(--silver-hi); cursor: pointer; font-size: 0.7rem; }
 .shop-search-clear:hover { background: var(--rose); color: var(--ink); }
+/* Only ever show one of the two — the display rules above beat the [hidden]
+   attribute, so restore it explicitly (fixes the icon + ✕ overlapping). */
+.shop-search-icon[hidden], .shop-search-clear[hidden] { display: none; }
 
 /* ---- Filter chips --------------------------------------------------------- */
 .shop-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; padding: 1rem clamp(1rem, 5vw, 3rem) 1.5rem; }
@@ -89,7 +92,7 @@ body.shop-modal-open { overflow: hidden; }
 .shop-card-body h3 { font-family: var(--fd); font-weight: 400; font-size: 1.2rem; color: var(--silver-hi); line-height: 1.2; }
 .shop-card-sub { font-size: 0.84rem; color: var(--silver-dim); line-height: 1.5; }
 .shop-card-foot { margin-top: auto; padding-top: 0.6rem; display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
-.shop-price { font-family: var(--fd); color: var(--rose-hi); font-size: 1.05rem; }
+.shop-price { font-family: var(--fb); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--rose-hi); font-size: 1.02rem; letter-spacing: 0.01em; }
 .shop-weight { font-size: 0.8rem; color: var(--silver-dim); }
 
 /* ---- Footer --------------------------------------------------------------- */

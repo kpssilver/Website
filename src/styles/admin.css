@@ -861,7 +861,7 @@
   border-color: rgba(233, 188, 169, 0.3);
 }
 .stk-stat-lbl { font-size: 0.75rem; letter-spacing: 0.04em; color: var(--a-text-dim); text-transform: uppercase; }
-.stk-stat-val { font-family: var(--fd); font-size: 1.6rem; line-height: 1; }
+.stk-stat-val { font-family: var(--fb); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.55rem; line-height: 1.05; letter-spacing: 0.01em; }
 .stk-stat--hero .stk-stat-val { font-size: 2rem; color: var(--a-rose-hi); }
 
 .pm-badge--sku {
@@ -941,8 +941,10 @@
   border-radius: 10px;
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.25);
 }
-.scan-status { margin: 0; padding: 0.8rem 1.1rem; font-size: 0.85rem; color: var(--a-text-dim); text-align: center; }
+.scan-status { margin: 0; padding: 0.9rem 1.2rem 0; font-size: 0.85rem; color: var(--a-text-dim); text-align: center; }
 .scan-status.is-error { color: #ffb4a8; }
+/* The "Read tag now" action needs room to breathe inside the modal. */
+#scanCapture { display: block; width: calc(100% - 2.4rem); margin: 1rem 1.2rem 1.2rem; }
 
 /* ---- Print sheets (tags + invoices) --------------------------------------- */
 .print-sheet { display: none; }
@@ -995,7 +997,11 @@
 .tag-sku { max-width: 13mm; font-size: 5.6pt; font-weight: 800; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- Tag print dialog ------------------------------------------------------ */
-.tp-body { padding: 1.1rem 1.3rem 0.4rem; }
+.tp-body { padding: 1.1rem 1.3rem 0.6rem; }
+/* The action row is a direct modal child (no padded form wrapper), so give it
+   its own padding + divider and let the buttons size evenly / wrap. */
+.pm-modal--sm .pm-form-actions { padding: 0.9rem 1.3rem 1.2rem; margin-top: 0; border-top: 1px solid var(--a-border); flex-wrap: wrap; gap: 0.6rem; }
+.pm-modal--sm .pm-form-actions .dash-btn { flex: 1 1 140px; justify-content: center; }
 .tp-sec { margin-bottom: 1rem; }
 .tp-sec-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-rose-hi); margin: 0 0 0.6rem; font-weight: 700; }
 .tp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
@@ -1265,7 +1271,7 @@
 .biz-card-contact { font-size: 0.78rem; color: var(--a-text-dim); margin-top: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .biz-bal-strip { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0.8rem; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--a-border); }
 .biz-bal-lbl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--a-text-dim); }
-.biz-bal-amt { font-family: var(--fd); font-size: 1.3rem; color: var(--a-silver-hi); }
+.biz-bal-amt { font-family: var(--fb); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.3rem; color: var(--a-silver-hi); }
 .biz-bal-strip--due { background: rgba(255, 120, 108, 0.1); border-color: rgba(255, 120, 108, 0.28); }
 .biz-bal-strip--due .biz-bal-amt { color: #ffb4a8; }
 .biz-bal-strip--advance { background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.28); }
@@ -1495,3 +1501,14 @@ select.cat-select option,
     border-radius: 0 16px 16px 0; box-shadow: 20px 0 60px rgba(0, 0, 0, 0.5);
   }
 }
+
+/* ===========================================================================
+   NUMERIC READABILITY — figures use the sans body font with lining, tabular
+   numerals so prices, weights and totals are clear and column-aligned.
+   =========================================================================== */
+.inv-totals, .inv-totals *, .staff-table td.num, .biz-drill-amt, .biz-tx-delta,
+.biz-tx-run, .biz-card-stats, .pm-price, .pm-price *, .stk-onhand {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--fb);
+}
+.inv-total-grand, .inv-total-due { font-size: 1rem !important; }

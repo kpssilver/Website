@@ -299,7 +299,7 @@ function editorMarkup(it, sets = {}) {
               ${IS_MOBILE ? '<label class="cm-upload-btn cm-upload-btn--cam"><input type="file" accept="image/*" capture="environment" id="stkImgCam" hidden /> 📷 Take photo</label>' : ''}
             </div>
           </div>
-          <p class="pm-hint">The first photo is the main image.${IS_MOBILE ? ' “Take photo” opens your camera; “Gallery” picks existing photos.' : ''}</p>
+          <p class="pm-hint">The first photo is the main image.${IS_MOBILE ? ' “Take photo” opens your camera; “Gallery” picks existing photos.' : ' You can also paste an image (Ctrl/⌘+V).'}</p>
           <div class="pm-images" id="stkImages"></div>
           <span class="pm-upload-status" id="stkImgStatus"></span>
         </div>
@@ -1704,8 +1704,8 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
   };
   renderImages();
 
-  const handleImagePick = async (e) => {
-    const files = [...e.target.files];
+  const addImageFiles = async (fileList) => {
+    const files = [...fileList].filter((f) => (f.type || '').startsWith('image/'));
     if (!files.length) return;
     imgStatus.textContent = `Uploading ${files.length} photo(s)…`;
     try {
@@ -1718,10 +1718,25 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
     } catch (err) {
       imgStatus.textContent = `Upload failed: ${err.message}`;
     }
+  };
+  const handleImagePick = (e) => {
+    addImageFiles(e.target.files);
     e.target.value = '';
   };
   holder.querySelector('#stkImgFile').addEventListener('change', handleImagePick);
   holder.querySelector('#stkImgCam')?.addEventListener('change', handleImagePick);
+
+  // Paste an image straight from the clipboard into the item.
+  holder.addEventListener('paste', (e) => {
+    const imgs = [...(e.clipboardData?.items || [])]
+      .filter((it) => (it.type || '').startsWith('image/'))
+      .map((it) => it.getAsFile())
+      .filter(Boolean);
+    if (imgs.length) {
+      e.preventDefault();
+      addImageFiles(imgs);
+    }
+  });
 
   const videoUrl = holder.querySelector('#stkVideoUrl');
   const videoStatus = holder.querySelector('#stkVideoStatus');

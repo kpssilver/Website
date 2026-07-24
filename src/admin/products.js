@@ -305,7 +305,7 @@ function editorMarkup(p) {
               ${IS_MOBILE ? '<label class="cm-upload-btn cm-upload-btn--cam"><input type="file" accept="image/*" capture="environment" id="pmImgCam" hidden /> 📷 Take photo</label>' : ''}
             </div>
           </div>
-          <p class="pm-hint">The first image is the main photo. Use “Make main” to promote any image.${IS_MOBILE ? ' “Take photo” opens your camera.' : ''}</p>
+          <p class="pm-hint">The first image is the main photo. Use “Make main” to promote any image.${IS_MOBILE ? ' “Take photo” opens your camera.' : ' You can also paste an image (Ctrl/⌘+V).'}</p>
           <div class="pm-images" id="pmImages"></div>
           <span class="pm-upload-status" id="pmImgStatus"></span>
         </div>
@@ -558,8 +558,8 @@ export async function renderProducts(root, session, opts = {}) {
     };
     renderImages();
 
-    const handleImagePick = async (e) => {
-      const files = [...e.target.files];
+    const addImageFiles = async (fileList) => {
+      const files = [...fileList].filter((f) => (f.type || '').startsWith('image/'));
       if (!files.length) return;
       imgStatus.textContent = `Uploading ${files.length} image(s)…`;
       try {
@@ -572,10 +572,26 @@ export async function renderProducts(root, session, opts = {}) {
       } catch (err) {
         imgStatus.textContent = `Upload failed: ${err.message}`;
       }
+    };
+    const handleImagePick = (e) => {
+      addImageFiles(e.target.files);
       e.target.value = '';
     };
     holder.querySelector('#pmImgFile').addEventListener('change', handleImagePick);
     holder.querySelector('#pmImgCam')?.addEventListener('change', handleImagePick);
+
+    // Paste an image straight from the clipboard (e.g. a screenshot or a copied
+    // photo) anywhere in the editor.
+    holder.addEventListener('paste', (e) => {
+      const imgs = [...(e.clipboardData?.items || [])]
+        .filter((it) => (it.type || '').startsWith('image/'))
+        .map((it) => it.getAsFile())
+        .filter(Boolean);
+      if (imgs.length) {
+        e.preventDefault();
+        addImageFiles(imgs);
+      }
+    });
 
     const videoUrl = holder.querySelector('#pmVideoUrl');
     const videoStatus = holder.querySelector('#pmVideoStatus');
