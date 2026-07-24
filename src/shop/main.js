@@ -15,6 +15,7 @@ import {
   categoryWhatsAppUrl,
   productLink,
   firstImage,
+  renderImage,
 } from '../data/products.js';
 import {
   fetchPricingSettings,
@@ -330,8 +331,18 @@ function openLightbox(src, alt) {
   lb.className = 'shop-lightbox';
   lb.innerHTML = `
     <button class="shop-lightbox-x" aria-label="Close">✕</button>
-    <img src="${esc(src)}" alt="${esc(alt || '')}" />`;
+    <img src="${esc(renderImage(src, 1600))}" data-full="${esc(src)}" alt="${esc(alt || '')}" />`;
   document.body.appendChild(lb);
+  // If image transforms aren't enabled the resized URL 404s — fall back to the
+  // original once so the picture still shows.
+  const lbImg = lb.querySelector('img');
+  lbImg.addEventListener(
+    'error',
+    () => {
+      if (lbImg.dataset.full && lbImg.src !== lbImg.dataset.full) lbImg.src = lbImg.dataset.full;
+    },
+    { once: true },
+  );
   const close = () => {
     lb.remove();
     document.removeEventListener('keydown', onEsc);

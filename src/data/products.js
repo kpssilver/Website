@@ -44,6 +44,17 @@ export function firstImage(product) {
   return Array.isArray(product?.images) && product.images.length ? product.images[0] : null;
 }
 
+// A resized copy from Supabase's image-transform endpoint. Full-resolution phone
+// photos are multi-MB and decoding one at fullscreen can spike memory enough for
+// mobile browsers (notably iOS Safari) to purge and reload the whole tab. Cap the
+// dimensions here; callers should keep the original as an <img onerror> fallback
+// in case image transforms aren't enabled on the project.
+export function renderImage(url, width = 1600, quality = 82) {
+  if (!url || typeof url !== 'string' || !url.includes('/storage/v1/object/public/')) return url;
+  const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+  return base + (base.includes('?') ? '&' : '?') + `width=${width}&height=${width}&resize=contain&quality=${quality}`;
+}
+
 export function formatWeight(product) {
   if (!product?.weight_grams) return '';
   const g = Number(product.weight_grams);
