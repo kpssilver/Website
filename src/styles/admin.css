@@ -1051,9 +1051,9 @@
 .biz-tx-run { font-size: 0.72rem; color: var(--a-text-dim); }
 
 /* ---- Stock filters + catalogue selection ----------------------------------- */
-.stk-top-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-/* Keep the toolbar a tidy strip of compact buttons rather than 4 chunky ones. */
-.stk-top-btns .dash-btn { padding: 0.5rem 0.85rem; font-size: 0.8rem; }
+.stk-top-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+/* A tidy toolbar strip with enough breathing room between buttons. */
+.stk-top-btns .dash-btn { padding: 0.55rem 1rem; font-size: 0.82rem; white-space: nowrap; }
 .stk-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1rem; align-items: flex-end; }
 .stk-filter { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.72rem; color: var(--a-text-dim); }
 .stk-filter select, .stk-filter input { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 8px; padding: 0.45rem 0.55rem; font: inherit; font-size: 0.82rem; }
@@ -1315,8 +1315,8 @@
 
   /* Stock toolbar: secondary actions sit 2-up, primary spans full width, so it
      reads as one compact block instead of four stacked full-width buttons. */
-  .stk-top-btns { width: 100%; gap: 0.5rem; }
-  .stk-top-btns .dash-btn { width: auto; flex: 1 1 calc(50% - 0.25rem); }
+  .stk-top-btns { width: 100%; gap: 0.6rem; }
+  .stk-top-btns .dash-btn { width: auto; flex: 1 1 calc(50% - 0.3rem); }
   .stk-top-btns #stkAdd { flex: 1 1 100%; }
 
   /* Modal / dialog footers wrap instead of overflowing. */
@@ -1344,10 +1344,10 @@
   .inv-add { flex-wrap: wrap; }
   .inv-add .stk-search { flex: 1 1 100%; }
 
-  /* Stock search + scan: let the scan button drop below the field. */
+  /* Stock search + scan + filters: search fills the row, buttons share below. */
   .stk-search-row { flex-wrap: wrap; }
   .stk-search-row .stk-search { flex: 1 1 100%; }
-  .stk-scan-btn { flex: 1 1 auto; justify-content: center; }
+  .stk-scan-btn, .stk-filter-toggle { flex: 1 1 auto; justify-content: center; }
 }
 
 @media (max-width: 420px) {
@@ -1400,3 +1400,51 @@ select.cat-select,
 .inv-newparty-full { grid-column: 1 / -1; }
 .inv-silver .pm-field-note { color: var(--a-rose-hi); font-weight: 600; }
 @media (max-width: 560px) { .inv-newparty-grid { grid-template-columns: 1fr; } }
+
+/* ===========================================================================
+   NATIVE <select> OPTION COLOURS — Windows renders the option list with the
+   OS theme (white bg); without an explicit colour our light text is invisible
+   until hovered. Force dark bg + light text on the option list everywhere.
+   =========================================================================== */
+.pm-lbl select option,
+.stk-filter select option,
+select.cat-select option,
+.cat-field select option,
+.kps-combo-sel option {
+  background: var(--a-panel-solid);
+  color: var(--a-silver-hi);
+}
+
+/* ===========================================================================
+   PRINT DIALOG — live tag preview (exact 1-bit output).
+   =========================================================================== */
+.tp-preview { display: flex; background: #fff; border: 1px solid var(--a-border); border-radius: 8px; overflow: hidden; }
+.tp-preview-tail { flex: 40 0 0; background: repeating-linear-gradient(45deg, #ececec, #ececec 6px, #dcdcdc 6px, #dcdcdc 12px); border-right: 1px dashed #b4b4b4; }
+.tp-preview-panel { flex: 52 0 0; display: flex; align-items: center; justify-content: center; background: #fff; min-height: 46px; }
+.tp-preview-canvas { width: 100%; height: auto; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.tp-preview-load { color: #666; font-size: 0.8rem; padding: 0.8rem; }
+.tp-preview-note { margin: 0.4rem 0 0; font-size: 0.74rem; color: var(--a-text-dim); line-height: 1.4; }
+
+/* ===========================================================================
+   STOCK FILTERS — right-aligned toggle, collapsible panel (inline on desktop,
+   bottom-sheet popup on mobile).
+   =========================================================================== */
+.stk-filter-toggle { position: relative; display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.stk-filter-toggle.has-filters { border-color: var(--a-rose); color: var(--a-rose-hi); }
+.stk-filter-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--a-rose); color: #2a0d12; font-size: 0.7rem; font-weight: 800; }
+.stk-filter-panel { border: 1px solid var(--a-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); padding: 0.9rem 1rem; margin: 0 0 1.1rem; }
+.stk-filter-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
+.stk-filter-panel-head span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-rose-hi); font-weight: 700; }
+/* Desktop: the panel is inline, so the scrim never covers the screen. */
+.stk-filter-scrim { position: fixed; inset: 0; background: rgba(10, 2, 4, 0.6); z-index: 900; display: none; }
+
+@media (max-width: 760px) {
+  .stk-filter-scrim:not([hidden]) { display: block; }
+  .stk-filter-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 901; margin: 0;
+    max-height: 82vh; overflow-y: auto; border-radius: 16px 16px 0 0;
+    padding: 1rem 1.1rem 1.4rem; box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+  }
+  .stk-filters { flex-direction: column; align-items: stretch; }
+  .stk-filter, .stk-filter select, .stk-filter input, .stk-wrange { width: 100%; }
+}

@@ -98,7 +98,7 @@ function openAddListModal(kind, existing = null) {
   return new Promise((resolve) => {
     const holder = document.createElement('div');
     holder.innerHTML = `
-    <div class="pm-modal-backdrop" id="slBackdrop" style="z-index:120">
+    <div class="pm-modal-backdrop" id="slBackdrop" style="z-index:1200">
       <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="${isEdit ? 'Edit' : 'New'} ${titles[kind] || kind}">
         <div class="pm-modal-head"><h2>${isEdit ? 'Edit' : 'New'} ${titles[kind] || kind}</h2><button class="pm-x" id="slClose" type="button" aria-label="Close">✕</button></div>
         <form class="pm-form" id="slForm">
@@ -719,10 +719,17 @@ async function rasterizeTag(it, fields, logo) {
     const scale = Math.min(1, availH / baseH);
     let y = PAD + Math.max(0, (availH - baseH * scale) / 2);
     for (const r of rows) {
-      const fs = Math.max(11, Math.round(r.size * scale));
+      let fs = Math.max(11, Math.round(r.size * scale));
       ctx.font = `${r.style}${r.weight} ${fs}px Arial, sans-serif`;
-      ctx.fillText(fitText(ctx, r.t, maxTextW), textX, y);
-      y += fs * 1.16 * scale + GAP * scale;
+      // Shrink this line until it fits the column width, so nothing is clipped
+      // (e.g. the trailing "g" on the weight line) — preferred over truncation.
+      while (fs > 8 && ctx.measureText(r.t).width > maxTextW) {
+        fs -= 1;
+        ctx.font = `${r.style}${r.weight} ${fs}px Arial, sans-serif`;
+      }
+      const text = ctx.measureText(r.t).width > maxTextW ? fitText(ctx, r.t, maxTextW) : r.t;
+      ctx.fillText(text, textX, y);
+      y += fs * 1.16 + GAP;
     }
   }
 
@@ -747,6 +754,29 @@ async function rasterizeTag(it, fields, logo) {
     }
   }
   return { widthBytes, height: H, bytes };
+}
+
+// Paint a 1-bit raster ({widthBytes,height,bytes}) onto a canvas so the print
+// dialog can show EXACTLY what will be printed (black dot = bit 0).
+function rasterToCanvas(raster) {
+  const { widthBytes, height, bytes } = raster;
+  const W = widthBytes * 8;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < W; x++) {
+      const bit = (bytes[y * widthBytes + (x >> 3)] >> (7 - (x & 7))) & 1; // 1=white
+      const v = bit ? 255 : 0;
+      const i = (y * W + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
 }
 
 // Builds the raw TSPL for all tags. The printable rectangle sits on the RIGHT
@@ -894,13 +924,21 @@ function openTagPrintDialog(items) {
 
   const holder = document.createElement('div');
   holder.innerHTML = `
-  <div class="pm-modal-backdrop" id="tpBackdrop" style="z-index:130">
+  <div class="pm-modal-backdrop" id="tpBackdrop" style="z-index:1100">
     <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-label="Print tag">
       <div class="pm-modal-head">
         <h2>Print tag${items.length > 1 ? `s — ${items.length} items` : ''}</h2>
         <button class="pm-x" id="tpClose" type="button" aria-label="Close">✕</button>
       </div>
       <div class="tp-body">
+        <div class="tp-sec">
+          <h3 class="tp-sec-h">Preview</h3>
+          <div class="tp-preview" aria-label="Tag preview">
+            <div class="tp-preview-tail" aria-hidden="true"></div>
+            <div class="tp-preview-panel" id="tpPreview"><span class="tp-preview-load">Rendering…</span></div>
+          </div>
+          <p class="tp-preview-note">Exactly what prints on the 52 × 15 mm rectangle. The striped strip is the blank tail you fold over.</p>
+        </div>
         <div class="tp-sec">
           <h3 class="tp-sec-h">Details to print</h3>
           <div class="tp-fields">
@@ -958,10 +996,30 @@ function openTagPrintDialog(items) {
   holder.querySelector('#tpBackdrop').addEventListener('click', (e) => {
     if (e.target.id === 'tpBackdrop') close();
   });
+  // Live preview of the first tag — re-rendered whenever the fields change.
+  const previewBox = holder.querySelector('#tpPreview');
+  let previewToken = 0;
+  const renderPreview = async () => {
+    const token = ++previewToken;
+    try {
+      const logo = fields.logo ? await loadTagLogo() : null;
+      const raster = await rasterizeTag(items[0], fields, logo);
+      if (token !== previewToken) return; // a newer render superseded this one
+      const canvas = rasterToCanvas(raster);
+      canvas.className = 'tp-preview-canvas';
+      previewBox.innerHTML = '';
+      previewBox.appendChild(canvas);
+    } catch {
+      if (token === previewToken) previewBox.innerHTML = '<span class="tp-preview-load">Preview unavailable</span>';
+    }
+  };
+  renderPreview();
+
   holder.querySelectorAll('[data-tf]').forEach((cb) =>
     cb.addEventListener('change', () => {
       fields[cb.dataset.tf] = cb.checked;
       saveTagFields(fields);
+      renderPreview();
     }),
   );
 
@@ -1093,8 +1151,19 @@ export async function renderStock(root, session, opts = {}) {
         <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path fill="currentColor" d="M2 4h4v2H4v2H2V4zm16 0h4v4h-2V6h-2V4zM2 16h2v2h2v2H2v-4zm18 0h2v4h-4v-2h2v-2zM6 7h1.5v10H6V7zm3 0h1v10H9V7zm2.5 0h2v10h-2V7zm3.5 0h1v10h-1V7zm2.5 0H18v10h-.5V7z"/></svg>
         Scan
       </button>
+      <button id="stkFilterToggle" type="button" class="dash-btn dash-btn--ghost stk-filter-toggle" aria-expanded="false" aria-controls="stkFilterPanel">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3 5h18v2.2l-6.8 6.8V21l-4.4-2.2v-4.8L3 7.2V5z"/></svg>
+        Filters<span class="stk-filter-badge" id="stkFilterBadge" hidden>0</span>
+      </button>
     </div>
-    <div class="stk-filters" id="stkFilters"></div>
+    <div class="stk-filter-scrim" id="stkFilterScrim" hidden></div>
+    <div class="stk-filter-panel" id="stkFilterPanel" hidden>
+      <div class="stk-filter-panel-head">
+        <span>Filter stock</span>
+        <button class="pm-x" id="stkFilterClose" type="button" aria-label="Close filters">✕</button>
+      </div>
+      <div class="stk-filters" id="stkFilters"></div>
+    </div>
     <div class="stk-catbar" id="stkCatBar" hidden>
       <span class="stk-catbar-count" id="stkCatCount">0 selected</span>
       <div class="stk-catbar-btns">
@@ -1114,6 +1183,26 @@ export async function renderStock(root, session, opts = {}) {
   const scanBtn = root.querySelector('#stkScan');
   const filterBar = root.querySelector('#stkFilters');
   const catBar = root.querySelector('#stkCatBar');
+  const filterToggle = root.querySelector('#stkFilterToggle');
+  const filterPanel = root.querySelector('#stkFilterPanel');
+  const filterScrim = root.querySelector('#stkFilterScrim');
+  const filterBadge = root.querySelector('#stkFilterBadge');
+
+  const setFilterOpen = (open) => {
+    filterPanel.hidden = !open;
+    filterScrim.hidden = !open;
+    filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  filterToggle.addEventListener('click', () => setFilterOpen(filterPanel.hidden));
+  filterScrim.addEventListener('click', () => setFilterOpen(false));
+  root.querySelector('#stkFilterClose').addEventListener('click', () => setFilterOpen(false));
+
+  const updateFilterBadge = () => {
+    const n = Object.values(filters).filter((v) => v !== '' && v != null).length;
+    filterBadge.textContent = n;
+    filterBadge.hidden = n === 0;
+    filterToggle.classList.toggle('has-filters', n > 0);
+  };
 
   let items = [];
   let sets = {};
@@ -1160,6 +1249,7 @@ export async function renderStock(root, session, opts = {}) {
   const renderList = () => {
     region.innerHTML = listMarkup(applyFilter(), dir, { selectMode, selected });
     wireList();
+    updateFilterBadge();
   };
 
   const renderFilters = () => {
@@ -1424,7 +1514,7 @@ async function openManageLists({ onChange } = {}) {
   let lists = {};
   const holder = document.createElement('div');
   holder.innerHTML = `
-  <div class="pm-modal-backdrop" id="mlBackdrop" style="z-index:110">
+  <div class="pm-modal-backdrop" id="mlBackdrop" style="z-index:1050">
     <div class="pm-modal" role="dialog" aria-modal="true" aria-label="Manage lists">
       <div class="pm-modal-head">
         <h2>Manage categories &amp; lists</h2>
