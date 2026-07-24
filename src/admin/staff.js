@@ -103,18 +103,50 @@ function auditRow(a) {
   </li>`;
 }
 
+// Max rows shown per page — the user scrolls to the next page for more.
+const PAGE_SIZE = 500;
+
 async function fetchOverview() {
   const { data, error } = await supabase.rpc('admin_staff_overview');
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 
-async function fetchAudit({ actorId = null, limit = 60 } = {}) {
-  let q = supabase.from('product_audit').select('*').order('created_at', { ascending: false }).limit(limit);
+// Paged + optionally date-ranged / staff-scoped audit query. Returns the rows
+// for the page plus the total count so we can drive the pager.
+async function fetchAudit({ actorId = null, from = null, to = null, page = 0 } = {}) {
+  let q = supabase.from('product_audit').select('*', { count: 'exact' }).order('created_at', { ascending: false });
   if (actorId) q = q.eq('actor_id', actorId);
-  const { data, error } = await q;
+  if (from) q = q.gte('created_at', from);
+  if (to) q = q.lte('created_at', `${to}T23:59:59.999`);
+  q = q.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+  const { data, error, count } = await q;
   if (error) throw error;
-  return data || [];
+  return { rows: data || [], count: count ?? 0 };
+}
+
+// Pager bar (Prev / Next + "showing X–Y of N"). `ns` namespaces the buttons so
+// the page-level log and the per-staff drawer log don't clash.
+function pagerBar(count, page, ns) {
+  const start = count ? page * PAGE_SIZE + 1 : 0;
+  const end = Math.min(count, (page + 1) * PAGE_SIZE);
+  const hasPrev = page > 0;
+  const hasNext = end < count;
+  return `
+  <div class="staff-pager">
+    <span class="staff-pager-info">${count ? `Showing ${nf(start)}–${nf(end)} of ${nf(count)}` : 'No entries'}</span>
+    <div class="staff-pager-btns">
+      <button class="dash-btn dash-btn--sm dash-btn--ghost" data-page="prev" data-ns="${ns}" ${hasPrev ? '' : 'disabled'}>← Prev</button>
+      <button class="dash-btn dash-btn--sm dash-btn--ghost" data-page="next" data-ns="${ns}" ${hasNext ? '' : 'disabled'}>Next →</button>
+    </div>
+  </div>`;
+}
+
+function renderPagedLog(rows, count, page, ns) {
+  const list = rows.length
+    ? `<ul class="staff-log">${rows.map(auditRow).join('')}</ul>`
+    : '<p class="empty">No product changes in this view.</p>';
+  return `${pagerBar(count, page, ns)}${list}`;
 }
 
 function staffTable(list) {
@@ -223,25 +255,35 @@ export async function renderStaff(root) {
     }
   };
 
+  let overview = []; // cached staff overview rows (for drawer insights)
+  let logPage = 0; // page index for the site-wide activity log
+
   const loadList = async () => {
     try {
-      const list = await fetchOverview();
-      listRegion.innerHTML = staffTable(list);
+      overview = await fetchOverview();
+      listRegion.innerHTML = staffTable(overview);
     } catch (err) {
       listRegion.innerHTML = `<p class="empty">Could not load staff: ${esc(err.message)}</p>`;
     }
   };
 
   const loadLog = async () => {
+    logRegion.innerHTML = '<div class="cm-loading">Loading activity…</div>';
     try {
-      const rows = await fetchAudit({ limit: 60 });
-      logRegion.innerHTML = rows.length
-        ? `<ul class="staff-log">${rows.map(auditRow).join('')}</ul>`
-        : '<p class="empty">No product changes recorded yet.</p>';
+      const { rows, count } = await fetchAudit({ page: logPage });
+      logRegion.innerHTML = renderPagedLog(rows, count, logPage, 'log');
     } catch (err) {
       logRegion.innerHTML = `<p class="empty">Could not load activity: ${esc(err.message)}</p>`;
     }
   };
+
+  // Site-wide log pager.
+  logRegion.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-page][data-ns="log"]');
+    if (!b) return;
+    logPage = Math.max(0, logPage + (b.dataset.page === 'next' ? 1 : -1));
+    loadLog().then(() => logRegion.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  });
 
   // ---- Add staff ------------------------------------------------------------
   const form = root.querySelector('#staffAdd');
@@ -271,21 +313,79 @@ export async function renderStaff(root) {
   });
 
   // ---- Row actions ----------------------------------------------------------
-  const openActivity = async (uid, name) => {
-    root.querySelector('#staffDrawerTitle').textContent = `Activity · ${name}`;
-    const body = root.querySelector('#staffDrawerBody');
-    body.innerHTML = '<div class="cm-loading">Loading…</div>';
-    drawer.hidden = false;
-    requestAnimationFrame(() => drawer.classList.add('is-open'));
+  const drawerBody = root.querySelector('#staffDrawerBody');
+  const actState = { uid: null, name: '', from: '', to: '', page: 0 };
+
+  // Load just the (paged, date-ranged) log portion of the drawer.
+  const loadActLog = async () => {
+    const logEl = drawerBody.querySelector('#stActLog');
+    if (!logEl) return;
+    logEl.innerHTML = '<div class="cm-loading">Loading…</div>';
     try {
-      const rows = await fetchAudit({ actorId: uid, limit: 100 });
-      body.innerHTML = rows.length
-        ? `<ul class="staff-log">${rows.map(auditRow).join('')}</ul>`
-        : '<p class="empty">No product changes by this staff member yet.</p>';
+      const { rows, count } = await fetchAudit({
+        actorId: actState.uid,
+        from: actState.from || null,
+        to: actState.to || null,
+        page: actState.page,
+      });
+      const ranged = actState.from || actState.to ? ' in this range' : '';
+      logEl.innerHTML = `<p class="staff-range-count">${nf(count)} change${count === 1 ? '' : 's'}${ranged}</p>${renderPagedLog(rows, count, actState.page, 'act')}`;
     } catch (err) {
-      body.innerHTML = `<p class="empty">Could not load activity: ${esc(err.message)}</p>`;
+      logEl.innerHTML = `<p class="empty">Could not load activity: ${esc(err.message)}</p>`;
     }
   };
+
+  const renderDrawer = () => {
+    const s = overview.find((x) => x.user_id === actState.uid) || {};
+    drawerBody.innerHTML = `
+      <div class="staff-insights">
+        <div class="stk-stat"><span class="stk-stat-lbl">Created</span><span class="stk-stat-val">${nf(s.created_count)}</span></div>
+        <div class="stk-stat"><span class="stk-stat-lbl">Edited</span><span class="stk-stat-val">${nf(s.updated_count)}</span></div>
+        <div class="stk-stat"><span class="stk-stat-lbl">Deleted</span><span class="stk-stat-val">${nf(s.deleted_count)}</span></div>
+        <div class="stk-stat"><span class="stk-stat-lbl">Last activity</span><span class="stk-stat-val stk-stat-val--sm">${esc(fmtWhen(s.last_activity))}</span></div>
+      </div>
+      <div class="staff-drawer-filters">
+        <label class="biz-date"><span>From</span><input type="date" id="stActFrom" value="${esc(actState.from)}" /></label>
+        <label class="biz-date"><span>To</span><input type="date" id="stActTo" value="${esc(actState.to)}" /></label>
+        <button type="button" class="dash-btn dash-btn--sm dash-btn--ghost" id="stActClear">All time</button>
+      </div>
+      <div id="stActLog"><div class="cm-loading">Loading…</div></div>`;
+    drawerBody.querySelector('#stActFrom').addEventListener('change', (e) => {
+      actState.from = e.target.value;
+      actState.page = 0;
+      loadActLog();
+    });
+    drawerBody.querySelector('#stActTo').addEventListener('change', (e) => {
+      actState.to = e.target.value;
+      actState.page = 0;
+      loadActLog();
+    });
+    drawerBody.querySelector('#stActClear').addEventListener('click', () => {
+      actState.from = '';
+      actState.to = '';
+      actState.page = 0;
+      renderDrawer();
+    });
+    loadActLog();
+  };
+
+  const openActivity = (uid, name) => {
+    actState.uid = uid;
+    actState.name = name;
+    actState.page = 0;
+    root.querySelector('#staffDrawerTitle').textContent = `Activity · ${name}`;
+    drawer.hidden = false;
+    requestAnimationFrame(() => drawer.classList.add('is-open'));
+    renderDrawer();
+  };
+
+  // Per-staff drawer log pager.
+  drawerBody.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-page][data-ns="act"]');
+    if (!b) return;
+    actState.page = Math.max(0, actState.page + (b.dataset.page === 'next' ? 1 : -1));
+    loadActLog().then(() => drawerBody.scrollTo({ top: 0, behavior: 'smooth' }));
+  });
 
   const closeDrawer = () => {
     drawer.classList.remove('is-open');
@@ -296,7 +396,15 @@ export async function renderStaff(root) {
 
   listRegion.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-act]');
-    if (!btn) return;
+    if (!btn) {
+      // Clicking the row (anywhere but a button) opens that staff's activity.
+      const row = e.target.closest('tr[data-uid]');
+      if (row) {
+        const s = overview.find((x) => x.user_id === row.dataset.uid);
+        openActivity(row.dataset.uid, s?.name || 'Staff');
+      }
+      return;
+    }
     const { act, uid, name } = btn.dataset;
 
     if (act === 'activity') return openActivity(uid, name || 'Staff');

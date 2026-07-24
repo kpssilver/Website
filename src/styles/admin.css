@@ -791,6 +791,21 @@
 .staff-pill.is-off { color: var(--a-text-dim); background: rgba(255, 255, 255, 0.06); }
 .staff-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
 .staff-list-panel { overflow-x: auto; }
+.staff-table tbody tr { cursor: pointer; }
+.staff-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* Pager (max 500/page) used by both the site-wide log and the staff drawer. */
+.staff-pager { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin: 0 0 0.9rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--a-border); }
+.staff-pager-info { font-size: 0.78rem; color: var(--a-text-dim); }
+.staff-pager-btns { display: flex; gap: 0.4rem; }
+
+/* Per-staff activity drawer: insight KPIs + date filters. */
+.staff-insights { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+.staff-insights .stk-stat { flex: initial; padding: 0.7rem 0.8rem; }
+.staff-insights .stk-stat-val--sm { font-size: 0.95rem; }
+.staff-drawer-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--a-border); }
+.staff-range-count { font-size: 0.8rem; color: var(--a-silver-hi); font-weight: 600; margin: 0 0 0.7rem; }
+@media (min-width: 620px) { .staff-insights { grid-template-columns: repeat(4, 1fr); } }
 
 .staff-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
 .staff-log-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 0.8rem; align-items: start; }
@@ -1051,9 +1066,15 @@
 .biz-tx-run { font-size: 0.72rem; color: var(--a-text-dim); }
 
 /* ---- Stock filters + catalogue selection ----------------------------------- */
-.stk-top-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.stk-top-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 /* A tidy toolbar strip with enough breathing room between buttons. */
 .stk-top-btns .dash-btn { padding: 0.55rem 1rem; font-size: 0.82rem; white-space: nowrap; }
+/* On tablets / smaller desktops the actions drop to their own full-width row so
+   they never crowd the title or wrap unevenly against it. */
+@media (max-width: 1024px) {
+  .pm-top { flex-wrap: wrap; }
+  .stk-top-btns { width: 100%; justify-content: flex-start; margin-top: 0.5rem; }
+}
 .stk-filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1rem; align-items: flex-end; }
 .stk-filter { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.72rem; color: var(--a-text-dim); }
 .stk-filter select, .stk-filter input { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 8px; padding: 0.45rem 0.55rem; font: inherit; font-size: 0.82rem; }
@@ -1107,10 +1128,25 @@
 
 /* ---- Business dashboard ---------------------------------------------------- */
 .biz-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.biz-daterow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.8rem; margin: 0 0 1rem; }
-.biz-date { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--a-text-dim); }
-.biz-date input { background: rgba(255, 255, 255, 0.045); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 8px; padding: 0.45rem 0.55rem; font: inherit; }
-.biz-date-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
+.biz-daterow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem 1rem; margin: 0 0 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--a-border); border-radius: 12px; padding: 0.75rem 0.95rem; }
+.biz-date-fields { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.biz-date { display: flex; align-items: center; gap: 0.45rem; font-size: 0.74rem; color: var(--a-text-dim); }
+.biz-date > span { text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; font-size: 0.68rem; }
+.biz-date input { background: rgba(0, 0, 0, 0.28); border: 1px solid var(--a-border); color: var(--a-silver-hi); border-radius: 9px; padding: 0.5rem 0.6rem; font: inherit; font-size: 0.85rem; color-scheme: dark; }
+.biz-date input:focus { outline: none; border-color: var(--a-rose); }
+/* Quick-range presets as a neat segmented control. */
+.biz-date-presets { display: inline-flex; flex-wrap: wrap; gap: 0; margin-left: auto; border: 1px solid var(--a-border); border-radius: 9px; overflow: hidden; }
+.biz-preset { background: transparent; border: none; border-left: 1px solid var(--a-border); color: var(--a-silver); font: inherit; font-size: 0.78rem; padding: 0.5rem 0.85rem; cursor: pointer; white-space: nowrap; }
+.biz-preset:first-child { border-left: none; }
+.biz-preset:hover { background: rgba(233, 188, 169, 0.12); color: var(--a-rose-hi); }
+@media (max-width: 620px) {
+  .biz-daterow { align-items: stretch; }
+  .biz-date-fields { flex: 1 1 100%; }
+  .biz-date { flex: 1 1 auto; }
+  .biz-date input { flex: 1 1 auto; width: 100%; }
+  .biz-date-presets { margin-left: 0; width: 100%; }
+  .biz-preset { flex: 1 1 auto; text-align: center; }
+}
 .biz-kpis { display: grid; grid-template-columns: repeat(4, 1fr); }
 .biz-kpis .stk-stat { flex: initial; }
 .stk-stat-sub { font-size: 0.68rem; color: var(--a-text-dim); }
@@ -1426,25 +1462,36 @@ select.cat-select option,
 .tp-preview-note { margin: 0.4rem 0 0; font-size: 0.74rem; color: var(--a-text-dim); line-height: 1.4; }
 
 /* ===========================================================================
-   STOCK FILTERS — right-aligned toggle, collapsible panel (inline on desktop,
-   bottom-sheet popup on mobile).
+   STOCK FILTERS — persistent left sidebar on desktop; slide-in drawer on mobile
+   opened by the "Filters" button.
    =========================================================================== */
+.stk-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.stk-main { min-width: 0; }
 .stk-filter-toggle { position: relative; display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
 .stk-filter-toggle.has-filters { border-color: var(--a-rose); color: var(--a-rose-hi); }
 .stk-filter-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--a-rose); color: #2a0d12; font-size: 0.7rem; font-weight: 800; }
-.stk-filter-panel { border: 1px solid var(--a-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); padding: 0.9rem 1rem; margin: 0 0 1.1rem; }
+.stk-sidebar { position: sticky; top: 1rem; border: 1px solid var(--a-border); border-radius: 12px; background: rgba(255, 255, 255, 0.02); padding: 0.9rem 1rem; }
 .stk-filter-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
 .stk-filter-panel-head span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--a-rose-hi); font-weight: 700; }
-/* Desktop: the panel is inline, so the scrim never covers the screen. */
+.stk-sidebar .stk-filters { flex-direction: column; align-items: stretch; gap: 0.75rem; margin: 0; }
+.stk-sidebar .stk-filter, .stk-sidebar .stk-filter select, .stk-sidebar .stk-filter input, .stk-sidebar .stk-wrange { width: 100%; }
 .stk-filter-scrim { position: fixed; inset: 0; background: rgba(10, 2, 4, 0.6); z-index: 900; display: none; }
 
-@media (max-width: 760px) {
+/* Desktop: sidebar is always present (ignores the [hidden] used for the mobile
+   drawer) and the mobile-only "Filters" button + close ✕ are hidden. */
+@media (min-width: 861px) {
+  .stk-sidebar[hidden] { display: block; }
+  .stk-filter-toggle { display: none; }
+  .stk-filter-panel-head .pm-x { display: none; }
+}
+
+/* Mobile: the sidebar becomes a left slide-in drawer opened by "Filters". */
+@media (max-width: 860px) {
+  .stk-layout { display: block; }
   .stk-filter-scrim:not([hidden]) { display: block; }
-  .stk-filter-panel {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 901; margin: 0;
-    max-height: 82vh; overflow-y: auto; border-radius: 16px 16px 0 0;
-    padding: 1rem 1.1rem 1.4rem; box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+  .stk-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 901; margin: 0;
+    width: min(320px, 86vw); max-height: 100vh; overflow-y: auto;
+    border-radius: 0 16px 16px 0; box-shadow: 20px 0 60px rgba(0, 0, 0, 0.5);
   }
-  .stk-filters { flex-direction: column; align-items: stretch; }
-  .stk-filter, .stk-filter select, .stk-filter input, .stk-wrange { width: 100%; }
 }

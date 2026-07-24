@@ -1157,23 +1157,26 @@ export async function renderStock(root, session, opts = {}) {
       </button>
     </div>
     <div class="stk-filter-scrim" id="stkFilterScrim" hidden></div>
-    <div class="stk-filter-panel" id="stkFilterPanel" hidden>
-      <div class="stk-filter-panel-head">
-        <span>Filter stock</span>
-        <button class="pm-x" id="stkFilterClose" type="button" aria-label="Close filters">✕</button>
+    <div class="stk-layout">
+      <aside class="stk-sidebar" id="stkFilterPanel" hidden aria-label="Filters">
+        <div class="stk-filter-panel-head">
+          <span>Filters</span>
+          <button class="pm-x" id="stkFilterClose" type="button" aria-label="Close filters">✕</button>
+        </div>
+        <div class="stk-filters" id="stkFilters"></div>
+      </aside>
+      <div class="stk-main">
+        <div class="stk-catbar" id="stkCatBar" hidden>
+          <span class="stk-catbar-count" id="stkCatCount">0 selected</span>
+          <div class="stk-catbar-btns">
+            <button class="dash-btn dash-btn--ghost" id="stkCatAll" type="button">Select all shown</button>
+            <button class="dash-btn dash-btn--ghost" id="stkCatNone" type="button">Clear</button>
+            <button class="dash-btn" id="stkCatBuild" type="button">Create catalogue</button>
+          </div>
+        </div>
+        <div id="stkListRegion" class="pm-region"><div class="cm-loading">Loading stock…</div></div>
       </div>
-      <div class="stk-filters" id="stkFilters"></div>
     </div>
-    <div class="stk-catbar" id="stkCatBar" hidden>
-      <span class="stk-catbar-count" id="stkCatCount">0 selected</span>
-      <div class="stk-catbar-btns">
-        <button class="dash-btn dash-btn--ghost" id="stkCatAll" type="button">Select all shown</button>
-        <button class="dash-btn dash-btn--ghost" id="stkCatNone" type="button">Clear</button>
-        <button class="dash-btn" id="stkCatBuild" type="button">Build catalogue</button>
-        <button class="dash-btn dash-btn--ghost" id="stkCatCancel" type="button">Cancel</button>
-      </div>
-    </div>
-    <div id="stkListRegion" class="pm-region"><div class="cm-loading">Loading stock…</div></div>
   </div>`;
 
   const region = root.querySelector('#stkListRegion');
@@ -1435,20 +1438,23 @@ export async function renderStock(root, session, opts = {}) {
   // ---- Catalogue selection ----
   const updateCatBar = () => {
     root.querySelector('#stkCatCount').textContent = `${selected.size} selected`;
-    root.querySelector('#stkCatBuild').disabled = selected.size === 0;
+    const build = root.querySelector('#stkCatBuild');
+    build.disabled = selected.size === 0;
+    build.textContent = selected.size ? `Create catalogue (${selected.size})` : 'Create catalogue';
   };
   const setSelectMode = (on) => {
     selectMode = on;
     catBar.hidden = !on;
     const btn = root.querySelector('#stkCatalogue');
-    btn.textContent = on ? 'Exit catalogue mode' : 'Create catalogue';
+    // The single toolbar button starts the flow, then becomes the way out — so
+    // there's never a confusing second "catalogue" button in the toolbar.
+    btn.textContent = on ? 'Cancel selection' : 'Create catalogue';
     btn.classList.toggle('is-active', on);
     if (!on) selected.clear();
     renderList();
     updateCatBar();
   };
   root.querySelector('#stkCatalogue').addEventListener('click', () => setSelectMode(!selectMode));
-  root.querySelector('#stkCatCancel').addEventListener('click', () => setSelectMode(false));
   root.querySelector('#stkCatNone').addEventListener('click', () => {
     selected.clear();
     renderList();
@@ -1504,7 +1510,7 @@ export async function renderStock(root, session, opts = {}) {
 // Manage the master lists (categories, sub categories, suppliers, collections)
 // used across the stock + product forms. Add, rename/edit details, or delete.
 // Deleting only removes the suggestion — existing items keep their value.
-async function openManageLists({ onChange } = {}) {
+export async function openManageLists({ onChange } = {}) {
   const KINDS = [
     { kind: 'category', label: 'Categories' },
     { kind: 'subcategory', label: 'Sub categories' },

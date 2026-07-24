@@ -19,7 +19,7 @@ import {
   money,
 } from '../data/business.js';
 import { openInvoiceModal } from './invoices.js';
-import { openStockItemEditor } from './stock.js';
+import { openStockItemEditor, openManageLists } from './stock.js';
 import { comboField, wireCombos } from './combo.js';
 
 const PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer', 'Cheque', 'Silver'];
@@ -119,18 +119,21 @@ export async function renderBusiness(root, session, opts = {}) {
         <button class="dash-btn" id="bizNewSale" type="button">+ New sale</button>
         <button class="dash-btn dash-btn--ghost" id="bizNewReturn" type="button">+ Return</button>
         <button class="dash-btn dash-btn--ghost" id="bizStockIn" type="button">+ Stock in</button>
+        <button class="dash-btn dash-btn--ghost" id="bizManageCats" type="button">Manage categories</button>
       </div>
     </div>
 
     ${
       isAdmin
         ? `<div class="biz-daterow">
-      <label class="biz-date">From <input type="date" id="bizFrom" value="${range.from}" /></label>
-      <label class="biz-date">To <input type="date" id="bizTo" value="${range.to}" /></label>
-      <div class="biz-date-presets">
-        <button type="button" class="shop-chip" data-preset="month">This month</button>
-        <button type="button" class="shop-chip" data-preset="30">Last 30 days</button>
-        <button type="button" class="shop-chip" data-preset="year">This year</button>
+      <div class="biz-date-fields">
+        <label class="biz-date"><span>From</span><input type="date" id="bizFrom" value="${range.from}" /></label>
+        <label class="biz-date"><span>To</span><input type="date" id="bizTo" value="${range.to}" /></label>
+      </div>
+      <div class="biz-date-presets" role="group" aria-label="Quick ranges">
+        <button type="button" class="biz-preset" data-preset="month">This month</button>
+        <button type="button" class="biz-preset" data-preset="30">Last 30 days</button>
+        <button type="button" class="biz-preset" data-preset="year">This year</button>
       </div>
     </div>
 
@@ -362,6 +365,7 @@ export async function renderBusiness(root, session, opts = {}) {
   root.querySelector('#bizNewSale').addEventListener('click', () => openInvoiceModal({ kind: 'sale', onSaved: reload }));
   root.querySelector('#bizNewReturn').addEventListener('click', () => openInvoiceModal({ kind: 'sale_return', onSaved: reload }));
   root.querySelector('#bizStockIn').addEventListener('click', () => openStockItemEditor({ images: [] }, { onSaved: reload }));
+  root.querySelector('#bizManageCats').addEventListener('click', () => openManageLists({ onChange: reload }));
 
   root.querySelector('#bizAddCustomer').addEventListener('click', () => openParty({ kind: 'customer', active: true }));
   root.querySelector('#bizAddSeller').addEventListener('click', () => openParty({ kind: 'seller', active: true }));
