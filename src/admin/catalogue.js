@@ -6,6 +6,7 @@
 // =============================================================================
 import { site } from '../config/site.js';
 import { firstImage, formatGrams } from '../data/stock.js';
+import { isChunkLoadError, reloadForStaleChunk } from '../utils/chunkReload.js';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -440,6 +441,11 @@ export function openCatalogue(items, { priceFor } = {}) {
       }
       pdf.save(`KPS-Silver-Catalogue-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
+      // A stale deployment removed the jsPDF/html2canvas chunk this old tab
+      // still references — reload once to fetch the current assets, then the
+      // user can try again. Only fall through to the print fallback if we've
+      // already reloaded (i.e. the chunk is genuinely unavailable).
+      if (isChunkLoadError(err) && reloadForStaleChunk()) return;
       alert(`Could not build the PDF automatically (${err?.message || err}). Opening the print dialog so you can choose “Save as PDF”.`);
       window.print();
     } finally {
