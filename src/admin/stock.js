@@ -1353,9 +1353,9 @@ export async function renderStock(root, session, opts = {}) {
   });
 
   const wireList = () => {
-    const openFor = (id) => {
+    const openFor = (id, opts = {}) => {
       const it = items.find((x) => x.id === id);
-      if (it) openEditor({ ...it, images: [...(it.images || [])] });
+      if (it) openEditor({ ...it, images: [...(it.images || [])] }, opts);
     };
     // Catalogue selection mode — cards toggle selection instead of opening.
     if (selectMode) {
@@ -1393,7 +1393,7 @@ export async function renderStock(root, session, opts = {}) {
     region.querySelectorAll('[data-edit]').forEach((btn) =>
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openFor(btn.dataset.edit);
+        openFor(btn.dataset.edit, { pane: 'details' });
       }),
     );
     region.querySelectorAll('[data-tag]').forEach((btn) =>
@@ -1471,7 +1471,7 @@ export async function renderStock(root, session, opts = {}) {
     openCatalogue(chosen, { priceFor: (it) => priceMap[it.id] || '' });
   });
 
-  const openEditor = (item) => openStockItemEditor(item, { sets, dir, onSaved: reload });
+  const openEditor = (item, opts = {}) => openStockItemEditor(item, { sets, dir, onSaved: reload, ...opts });
 
   // ---- Scan & register an existing product by its printed QR / barcode ----
   // OCR mode also reads the printed weight + design number off the tag so they
@@ -1633,7 +1633,7 @@ export async function openManageLists({ onChange } = {}) {
 // Business dashboard ("Stock in"). Shows the inventory ledger by default (for
 // existing items) with a Details tab to edit the piece. `onSaved` is called
 // after a successful insert/update.
-export async function openStockItemEditor(item, { sets = null, dir = null, onSaved } = {}) {
+export async function openStockItemEditor(item, { sets = null, dir = null, onSaved, pane = null } = {}) {
   // When invoked standalone (no sets/dir passed), load suggestions + directory.
   if (!sets) {
     try {
@@ -1671,6 +1671,9 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
       panes.forEach((p) => p.classList.toggle('is-hidden', p.dataset.pane !== tab.dataset.pane));
     }),
   );
+  // Open on a specific tab when requested (e.g. the card's Edit button jumps
+  // straight to Details instead of the default Inventory view).
+  if (pane) holder.querySelector(`.stk-tab[data-pane="${pane}"]`)?.click();
 
   wireCombos(form, { onAddNew: openAddListModal });
 
