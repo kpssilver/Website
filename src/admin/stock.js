@@ -14,7 +14,15 @@ import { mountInventoryPanel } from './inventoryPanel.js';
 import { comboField, wireCombos } from './combo.js';
 import { fetchUserDirectory, actorLabel } from '../data/business.js';
 import { fetchProducts } from '../data/products.js';
-import { fetchPricingSettings, priceLabel } from '../data/pricing.js';
+import {
+  fetchPricingSettings,
+  priceLabel,
+  computePrice,
+  formatMoney,
+  PRICING_MODES,
+  CHARGE_MODES,
+  DEFAULT_PRICING,
+} from '../data/pricing.js';
 import {
   fetchStockItems,
   insertStockItem,
@@ -42,6 +50,10 @@ const IS_MOBILE =
   (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints || 0) > 1);
 
+
+function options(list, selected) {
+  return list.map((o) => `<option value="${o.value}" ${selected === o.value ? 'selected' : ''}>${o.label}</option>`).join('');
+}
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -291,6 +303,59 @@ function editorMarkup(it, sets = {}) {
           </label>
         </div>
 
+        <fieldset class="pm-pricing">
+          <legend>Pricing</legend>
+          <p class="pm-formula pm-when-calc">Total = (Weight × Silver price/g, at 100%) + Weightage% + Charges, then + GST%</p>
+          <div class="pm-form-grid">
+            <label class="pm-lbl">Silver purity ${ic('The silver grade shown to customers — 925 sterling or 999 fine. Descriptive only; pricing always uses the live per-gram silver price × weight (100%).')}
+              <select name="metal_purity">
+                <option value="925" ${it.metal_purity !== '999' ? 'selected' : ''}>925 Sterling Silver</option>
+                <option value="999" ${it.metal_purity === '999' ? 'selected' : ''}>999 Fine Silver</option>
+              </select>
+            </label>
+            <label class="pm-lbl">Material / finish (optional) ${ic('Extra descriptive note shown in specs (e.g. "Hallmarked, antique finish"). Display only — does not affect price.')}
+              <input name="purity" type="text" value="${esc(it.purity)}" placeholder="e.g. Hallmarked, antique finish" />
+            </label>
+
+            <label class="pm-lbl">Pricing model ${ic('Auto-calculate = price is built from the live silver price + weightage + charges below. Fixed = you type one final price. On request = no price shown, customer must enquire.')}
+              <select name="pricing_mode" id="stkMode">${options(PRICING_MODES, it.pricing_mode || 'calculated')}</select>
+            </label>
+            <label class="pm-lbl pm-when-fixed" id="stkFixedWrap">Fixed price (₹) ${ic('The exact final price shown to customers. Used only when Pricing model is "Fixed price".')}
+              <input name="price" type="number" step="0.01" min="0" value="${it.price ?? ''}" />
+            </label>
+
+            <label class="pm-lbl pm-when-calc">Weightage / wastage (%) ${ic('Percentage added on top of the silver value to cover making/wastage during crafting. Prefilled at 12%.')}
+              <input name="weightage_percent" type="number" step="0.01" min="0" value="${it.weightage_percent ?? 12}" />
+              <span class="pm-field-note">Prefilled at 12% (a typical making charge). Please check and adjust if needed.</span>
+            </label>
+            <label class="pm-lbl pm-when-calc">Charges ${ic('Optional extra charges on top of silver + weightage: making charges, labour, both, or none. Only the selected inputs are used.')}
+              <select name="charge_mode" id="stkChargeMode">${options(CHARGE_MODES, it.charge_mode || 'making')}</select>
+            </label>
+
+            <div class="pm-lbl pm-when-calc pm-charge-making">Making charge ${ic('The crafting charge. "% of silver value" = percent of (silver + weightage); "₹ per gram" = amount × weight; "Flat ₹" = fixed amount.')}
+              <div class="pm-inline">
+                <select name="making_charge_type">
+                  <option value="percent" ${(it.making_charge_type || 'percent') === 'percent' ? 'selected' : ''}>% of silver value</option>
+                  <option value="per_gram" ${it.making_charge_type === 'per_gram' ? 'selected' : ''}>₹ per gram</option>
+                  <option value="flat" ${it.making_charge_type === 'flat' ? 'selected' : ''}>Flat ₹</option>
+                </select>
+                <input name="making_charge_value" type="number" step="0.01" min="0" value="${it.making_charge_value ?? 0}" />
+              </div>
+            </div>
+
+            <div class="pm-lbl pm-when-calc pm-charge-labour">Labour ${ic('A labour cost added separately from making charges. "₹ per gram" = amount × weight; "Flat ₹" = fixed amount.')}
+              <div class="pm-inline">
+                <select name="labour_type">
+                  <option value="per_gram" ${(it.labour_type || 'per_gram') === 'per_gram' ? 'selected' : ''}>₹ per gram</option>
+                  <option value="flat" ${it.labour_type === 'flat' ? 'selected' : ''}>Flat ₹</option>
+                </select>
+                <input name="labour_value" type="number" step="0.01" min="0" value="${it.labour_value ?? 0}" />
+              </div>
+            </div>
+          </div>
+          <div class="pm-breakdown pm-when-calc" id="stkBreakdown"></div>
+        </fieldset>
+
         <div class="pm-media">
           <div class="pm-media-head">
             <h3>Photos</h3>
@@ -358,6 +423,16 @@ const blankItem = () => ({
   notes: '',
   images: [],
   video_url: '',
+  pricing_mode: 'calculated',
+  price: null,
+  metal_purity: '925',
+  weightage_percent: 12,
+  charge_mode: 'making',
+  making_charge_type: 'percent',
+  making_charge_value: 0,
+  labour_type: 'per_gram',
+  labour_value: 0,
+  purity: '',
 });
 
 // ---- Tag printing ----------------------------------------------------------
@@ -1646,6 +1721,7 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
   if (!dir) {
     dir = await fetchUserDirectory().catch(() => ({}));
   }
+  const priceSettings = await fetchPricingSettings().catch(() => ({ ...DEFAULT_PRICING }));
 
   const holder = document.createElement('div');
   holder.innerHTML = editorMarkup(item, sets);
@@ -1674,6 +1750,54 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
   // Open on a specific tab when requested (e.g. the card's Edit button jumps
   // straight to Details instead of the default Inventory view).
   if (pane) holder.querySelector(`.stk-tab[data-pane="${pane}"]`)?.click();
+
+  // ---- Pricing: show/hide fields per model + live breakdown (mirrors the
+  // Products editor; the same values are pushed to the linked product on save).
+  const modeSel = holder.querySelector('#stkMode');
+  const chargeSel = holder.querySelector('#stkChargeMode');
+  const breakdown = holder.querySelector('#stkBreakdown');
+  const readPricing = () => {
+    const fd = new FormData(form);
+    const n = (v) => (v === '' || v == null ? 0 : Number(v));
+    return {
+      pricing_mode: fd.get('pricing_mode'),
+      price: fd.get('price') === '' ? null : Number(fd.get('price')),
+      metal_purity: fd.get('metal_purity'),
+      weight_grams: n(fd.get('gross_weight')),
+      weightage_percent: n(fd.get('weightage_percent')),
+      charge_mode: fd.get('charge_mode'),
+      making_charge_type: fd.get('making_charge_type'),
+      making_charge_value: n(fd.get('making_charge_value')),
+      labour_type: fd.get('labour_type'),
+      labour_value: n(fd.get('labour_value')),
+    };
+  };
+  const refreshPricing = () => {
+    const mode = modeSel?.value || 'calculated';
+    form.classList.toggle('is-calc', mode === 'calculated');
+    form.classList.toggle('is-fixed', mode === 'fixed');
+    form.classList.toggle('is-request', mode === 'on_request');
+    const cm = chargeSel?.value;
+    const makingEl = form.querySelector('.pm-charge-making');
+    const labourEl = form.querySelector('.pm-charge-labour');
+    if (makingEl) makingEl.style.display = cm === 'making' || cm === 'both' ? '' : 'none';
+    if (labourEl) labourEl.style.display = cm === 'labour' || cm === 'both' ? '' : 'none';
+    if (!breakdown) return;
+    const r = computePrice(readPricing(), priceSettings);
+    if (mode !== 'calculated') {
+      breakdown.innerHTML = '';
+    } else if (r.mode === 'unset') {
+      breakdown.innerHTML = '<p class="pm-hint">Enter a gross weight (and ensure the silver rate is set) to preview the price.</p>';
+    } else {
+      const lines = r.lines
+        .map((l) => `<div class="pm-brk-row"><span>${esc(l.label)}</span><span>${esc(formatMoney(l.amount))}</span></div>`)
+        .join('');
+      breakdown.innerHTML = `<div class="pm-brk-title">Live price breakdown</div>${lines}<div class="pm-brk-row pm-brk-total"><span>Total (incl. GST)</span><span>${esc(formatMoney(r.total))}</span></div>`;
+    }
+  };
+  form.addEventListener('input', refreshPricing);
+  form.addEventListener('change', refreshPricing);
+  refreshPricing();
 
   wireCombos(form, { onAddNew: openAddListModal });
 
@@ -1795,6 +1919,17 @@ export async function openStockItemEditor(item, { sets = null, dir = null, onSav
       notes: (fd.get('notes') || '').trim() || null,
       images,
       video_url: (fd.get('video_url') || '').trim() || null,
+      // Pricing — mirrors the Products editor; synced to the linked product.
+      pricing_mode: fd.get('pricing_mode') || 'calculated',
+      price: fd.get('pricing_mode') === 'fixed' ? num(fd.get('price')) : null,
+      metal_purity: fd.get('metal_purity') || '925',
+      weightage_percent: num(fd.get('weightage_percent')) ?? 0,
+      charge_mode: fd.get('charge_mode') || 'making',
+      making_charge_type: fd.get('making_charge_type') || 'percent',
+      making_charge_value: num(fd.get('making_charge_value')) ?? 0,
+      labour_type: fd.get('labour_type') || 'per_gram',
+      labour_value: num(fd.get('labour_value')) ?? 0,
+      purity: (fd.get('purity') || '').trim() || null,
     };
     // Quantity is only set on creation (the opening balance). For existing items
     // it is managed exclusively through movements (restock / sale / return) so
