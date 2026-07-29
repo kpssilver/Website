@@ -30,8 +30,13 @@ const OPTIONAL_COLUMNS = [
   { key: 'gst', label: 'GST', type: 'number' },
 ];
 
-// Columns whose values are summed into the totals row.
-const SUMMABLE = new Set(['gross_weight', 'price', 'making', 'gst']);
+// Standing terms shown at the foot of every quotation (no pricing claims — we
+// don't print prices here).
+const FOOTER_POINTS = [
+  'This quotation is valid for 7 days from the date mentioned above.',
+  'Final weight and purity are confirmed at the time of billing.',
+  'For any clarification, please reach us on the phone number or email above.',
+];
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -64,8 +69,27 @@ export function renderQuotations(root) {
     if (col.type === 'computed') return touchStr(row);
     return row.values[col.key] ?? '';
   };
-  const columnTotal = (key) => rows.reduce((sum, r) => sum + toNum(r.values[key]), 0);
-  const hasSummable = () => columns.some((c) => SUMMABLE.has(c.key));
+
+  // A row is "blank" (and dropped from the PDF) when it carries no meaningful
+  // data — the auto-preset Purity (92.5) and the computed Touch don't count.
+  const isRowBlank = (row) =>
+    columns.every((c) => {
+      if (c.type === 'computed') return true;
+      const v = String(row.values[c.key] ?? '').trim();
+      if (v === '') return true;
+      if (c.key === 'purity' && Number(v) === 92.5) return true;
+      return false;
+    });
+  // A column is "blank" when none of the given rows fill it (Touch survives as
+  // long as any row has a Purity or Plus).
+  const isColBlank = (col, used) => {
+    if (col.type === 'computed') {
+      return used.every(
+        (r) => String(r.values.purity ?? '').trim() === '' && String(r.values.plus ?? '').trim() === '',
+      );
+    }
+    return used.every((r) => String(r.values[col.key] ?? '').trim() === '');
+  };
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -108,8 +132,9 @@ export function renderQuotations(root) {
       </div>
       <div class="qt-table-wrap" id="qtTableWrap"></div>
       <label class="qt-note-field">Note (optional)
-        <textarea id="qtNote" rows="2" placeholder="e.g. Prices are indicative and subject to the day's silver rate."></textarea>
+        <textarea id="qtNote" rows="2" placeholder="Any note to the customer (optional)."></textarea>
       </label>
+      <ul class="qt-foot">${FOOTER_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
     </div>
   </div>`;
 
@@ -129,18 +154,6 @@ export function renderQuotations(root) {
     return `<input class="qt-in" data-row="${row.id}" data-col="${col.key}" type="${type}"${step} value="${esc(val)}" />`;
   };
 
-  const totalsRow = () => {
-    if (!hasSummable()) return '';
-    const cells = columns
-      .map((c, i) => {
-        if (i === 0) return '<td class="qt-total-lbl">Total</td>';
-        if (SUMMABLE.has(c.key)) return `<td data-total="${c.key}">${esc(fmtNum(columnTotal(c.key)))}</td>`;
-        return '<td></td>';
-      })
-      .join('');
-    return `<tr class="qt-total-row">${cells}<td class="qt-rowact"></td></tr>`;
-  };
-
   const renderTable = () => {
     const head = columns
       .map(
@@ -157,30 +170,34 @@ export function renderQuotations(root) {
     tableWrap.innerHTML = `
       <table class="qt-table">
         <thead><tr>${head}<th class="qt-rowact"></th></tr></thead>
-        <tbody>${body}${totalsRow()}</tbody>
+        <tbody>${body}</tbody>
       </table>`;
   };
   renderTable();
-
-  const updateTotals = () => {
-    columns.forEach((c) => {
-      if (!SUMMABLE.has(c.key)) return;
-      const cell = tableWrap.querySelector(`[data-total="${c.key}"]`);
-      if (cell) cell.textContent = fmtNum(columnTotal(c.key));
-    });
-  };
 
   tableWrap.addEventListener('input', (e) => {
     const inp = e.target.closest('.qt-in');
     if (!inp) return;
     const row = rows.find((r) => r.id === inp.dataset.row);
     if (!row) return;
+    // Auto-capitalise the first letter of product names as they're typed.
+    if (inp.dataset.col === 'name' && inp.value) {
+      const capped = inp.value.charAt(0).toUpperCase() + inp.value.slice(1);
+      if (capped !== inp.value) {
+        const pos = inp.selectionStart;
+        inp.value = capped;
+        try {
+          inp.setSelectionRange(pos, pos);
+        } catch {
+          /* number/other inputs don't support selection */
+        }
+      }
+    }
     row.values[inp.dataset.col] = inp.value;
     if (inp.dataset.col === 'purity' || inp.dataset.col === 'plus') {
       const span = tableWrap.querySelector(`.qt-touch[data-row="${row.id}"]`);
       if (span) span.textContent = touchStr(row);
     }
-    updateTotals();
   });
 
   tableWrap.addEventListener('click', (e) => {
@@ -235,28 +252,28 @@ export function renderQuotations(root) {
     });
   }
 
-  // A clean, print-styled document built from current state (no inputs).
-  const buildPrintSheet = () => {
+  // Rows/columns that will actually appear in the PDF (blank ones removed so the
+  // quotation stays tidy). Returns null when there's nothing meaningful to show.
+  const printModel = () => {
+    const usedRows = rows.filter((r) => !isRowBlank(r));
+    if (!usedRows.length) return null;
+    const usedCols = columns.filter((c) => !isColBlank(c, usedRows));
+    if (!usedCols.length) return null;
+    return { usedRows, usedCols };
+  };
+
+  // A clean, print-styled document built from current state (no inputs, no
+  // blank rows/columns).
+  const buildPrintSheet = (model) => {
     const customer = customerInput.value.trim();
     const date = formatDate(dateInput.value || today);
     const note = noteInput.value.trim();
     const sheet = document.createElement('div');
     sheet.className = 'qt-print';
-    const headRow = columns.map((c) => `<th>${esc(c.label)}</th>`).join('');
-    const bodyRows = rows
-      .map((r) => `<tr>${columns.map((c) => `<td>${esc(cellText(c, r))}</td>`).join('')}</tr>`)
+    const headRow = model.usedCols.map((c) => `<th>${esc(c.label)}</th>`).join('');
+    const bodyRows = model.usedRows
+      .map((r) => `<tr>${model.usedCols.map((c) => `<td>${esc(cellText(c, r))}</td>`).join('')}</tr>`)
       .join('');
-    let totals = '';
-    if (hasSummable()) {
-      const cells = columns
-        .map((c, i) => {
-          if (i === 0) return '<td class="qt-print-total-lbl">Total</td>';
-          if (SUMMABLE.has(c.key)) return `<td>${esc(fmtNum(columnTotal(c.key)))}</td>`;
-          return '<td></td>';
-        })
-        .join('');
-      totals = `<tr class="qt-print-total">${cells}</tr>`;
-    }
     sheet.innerHTML = `
       <div class="qt-print-head">
         <img class="qt-print-logo" src="/logo.svg" alt="KPS Silver" />
@@ -269,10 +286,10 @@ export function renderQuotations(root) {
       </div>
       <table class="qt-print-table">
         <thead><tr>${headRow}</tr></thead>
-        <tbody>${bodyRows}${totals}</tbody>
+        <tbody>${bodyRows}</tbody>
       </table>
       ${note ? `<p class="qt-print-note">${esc(note)}</p>` : ''}
-      <p class="qt-print-foot">This is a quotation and not a tax invoice. Values are subject to the prevailing silver rate.</p>`;
+      <ul class="qt-print-foot">${FOOTER_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`;
     return sheet;
   };
 
@@ -300,25 +317,20 @@ export function renderQuotations(root) {
 
   const filename = () => `KPS-Quotation-${dateInput.value || today}.pdf`;
 
-  // Returns a jsPDF instance rendered from the current quotation.
+  // Returns a jsPDF instance sized to exactly fit the quotation content (a
+  // single auto-sized page — no forced A4 whitespace), or null if empty.
   const buildPdf = async () => {
-    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-    const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const canvas = await nodeToCanvas(html2canvas, buildPrintSheet());
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    const imgH = (canvas.height * pageW) / canvas.width;
-    let position = 0;
-    let remaining = imgH;
-    pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
-    remaining -= pageH;
-    while (remaining > 0) {
-      position -= pageH;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, pageW, imgH);
-      remaining -= pageH;
+    const model = printModel();
+    if (!model) {
+      alert('Add at least one row with details before creating the PDF.');
+      return null;
     }
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+    const canvas = await nodeToCanvas(html2canvas, buildPrintSheet(model));
+    const pageW = 595.28; // A4 width in pt — keeps a familiar document width
+    const pageH = (canvas.height * pageW) / canvas.width;
+    const pdf = new jsPDF({ unit: 'pt', format: [pageW, pageH], orientation: pageH >= pageW ? 'portrait' : 'landscape' });
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, pageH);
     return pdf;
   };
 
@@ -340,6 +352,7 @@ export function renderQuotations(root) {
   root.querySelector('#qtDownload').addEventListener('click', (e) => {
     withButton(e.currentTarget, 'Preparing…', async () => {
       const pdf = await buildPdf();
+      if (!pdf) return;
       pdf.save(filename());
     });
   });
@@ -347,6 +360,7 @@ export function renderQuotations(root) {
   root.querySelector('#qtShare').addEventListener('click', (e) => {
     withButton(e.currentTarget, 'Preparing…', async () => {
       const pdf = await buildPdf();
+      if (!pdf) return;
       const name = filename();
       const blob = pdf.output('blob');
       const file = new File([blob], name, { type: 'application/pdf' });
