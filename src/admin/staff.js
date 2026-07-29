@@ -10,6 +10,7 @@
 // =============================================================================
 import { supabase } from '../config/supabase.js';
 import { staffApi } from './staffApi.js';
+import { adminApi } from './adminApi.js';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -149,6 +150,32 @@ function renderPagedLog(rows, count, page, ns) {
   return `${pagerBar(count, page, ns)}${list}`;
 }
 
+function adminTable(list) {
+  if (!list.length) return '<p class="empty">No administrators yet.</p>';
+  return `
+  <table class="staff-table">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Added</th><th></th></tr>
+    </thead>
+    <tbody>
+      ${list
+        .map(
+          (a) => `
+        <tr data-uid="${esc(a.user_id)}">
+          <td><span class="staff-name">${esc(a.name)}</span>${a.is_self ? ' <span class="staff-flag">you</span>' : ''}</td>
+          <td>${esc(a.email)}</td>
+          <td>${esc(fmtWhen(a.created_at))}</td>
+          <td class="staff-actions">
+            <button class="dash-btn dash-btn--sm" data-aact="reset" data-uid="${esc(a.user_id)}" data-name="${esc(a.name)}">Reset password</button>
+            ${a.is_self ? '' : `<button class="dash-btn dash-btn--sm dash-btn--danger" data-aact="delete" data-uid="${esc(a.user_id)}" data-name="${esc(a.name)}">Remove</button>`}
+          </td>
+        </tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>`;
+}
+
 function staffTable(list) {
   if (!list.length) return '<p class="empty">No staff yet. Add your first team member above.</p>';
   return `
@@ -196,6 +223,30 @@ export async function renderStaff(root) {
         <h2 class="pm-title">Staff</h2>
         <p class="pm-lede">Add team members who can manage products. They can only add, edit and delete listings — nothing else. Every change is logged below.</p>
       </div>
+    </div>
+
+    <div class="panel staff-admins-panel">
+      <div class="panel-head"><h2>Administrators</h2></div>
+      <p class="pm-lede pm-lede--tight">Admins have full access to the dashboard and can manage staff and other admins. Add another administrator with their email and a password.</p>
+      <form class="staff-add" id="adminAdd">
+        <div class="staff-add-grid">
+          <label class="pm-lbl">Name
+            <input name="name" type="text" placeholder="e.g. Priya S" required />
+          </label>
+          <label class="pm-lbl">Email
+            <input name="email" type="email" inputmode="email" placeholder="name@example.com" required />
+          </label>
+          <label class="pm-lbl">Password
+            <input name="password" type="text" placeholder="At least 8 characters" required />
+            <span class="pm-field-note">You choose the password and share it with the new admin. They sign in at the admin portal with this email.</span>
+          </label>
+        </div>
+        <div class="staff-add-foot">
+          <button type="submit" class="dash-btn" id="adminAddBtn">+ Add admin</button>
+          <span class="pm-save-msg" id="adminAddMsg"></span>
+        </div>
+      </form>
+      <div id="adminListRegion"><div class="cm-loading">Loading administrators…</div></div>
     </div>
 
     <form class="staff-add" id="staffAdd">
@@ -283,6 +334,84 @@ export async function renderStaff(root) {
     if (!b) return;
     logPage = Math.max(0, logPage + (b.dataset.page === 'next' ? 1 : -1));
     loadLog().then(() => logRegion.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  });
+
+  // ---- Administrators -------------------------------------------------------
+  const adminListRegion = root.querySelector('#adminListRegion');
+  const adminForm = root.querySelector('#adminAdd');
+
+  const setAdminMsg = (text, cls = 'pm-save-msg') => {
+    const el = root.querySelector('#adminAddMsg');
+    if (el) {
+      el.textContent = text;
+      el.className = cls;
+    }
+  };
+
+  const loadAdmins = async () => {
+    try {
+      const { admins } = await adminApi.list();
+      adminListRegion.innerHTML = adminTable(admins || []);
+    } catch (err) {
+      adminListRegion.innerHTML = `<p class="empty">Could not load administrators: ${esc(err.message)}</p>`;
+    }
+  };
+
+  adminForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(adminForm);
+    const name = String(fd.get('name') || '').trim();
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+    const btn = root.querySelector('#adminAddBtn');
+
+    btn.disabled = true;
+    setAdminMsg('Creating…');
+    try {
+      await adminApi.create(name, email, password);
+      setAdminMsg(`Added ✓ — ${name} can sign in at /admin with ${email} and this password.`, 'pm-save-msg is-ok');
+      adminForm.reset();
+      loadAdmins();
+    } catch (err) {
+      setAdminMsg(err.message || 'Could not add admin.', 'pm-save-msg is-error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  adminListRegion.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-aact]');
+    if (!btn) return;
+    const { aact, uid, name } = btn.dataset;
+
+    if (aact === 'reset') {
+      const pw = prompt(`Set a new password for ${name}.`);
+      if (pw == null) return;
+      if (pw.length < 8) return alert('Password must be at least 8 characters.');
+      btn.disabled = true;
+      try {
+        await adminApi.resetPassword(uid, pw);
+        alert(`Password reset for ${name}.`);
+      } catch (err) {
+        alert(err.message || 'Could not reset the password.');
+      } finally {
+        btn.disabled = false;
+      }
+      return;
+    }
+
+    if (aact === 'delete') {
+      if (!confirm(`Remove admin access for ${name}? Their login is deleted permanently.`)) return;
+      btn.disabled = true;
+      try {
+        await adminApi.remove(uid);
+        loadAdmins();
+      } catch (err) {
+        alert(err.message || 'Could not remove the administrator.');
+        btn.disabled = false;
+      }
+      return;
+    }
   });
 
   // ---- Add staff ------------------------------------------------------------
@@ -457,6 +586,7 @@ export async function renderStaff(root) {
     if (e.target.closest('[data-drawer-close]')) closeDrawer();
   });
 
+  loadAdmins();
   loadList();
   loadLog();
 }

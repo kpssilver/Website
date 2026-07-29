@@ -827,11 +827,14 @@ html[data-theme='light'] {
   display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.78rem;
   letter-spacing: 0.03em; color: var(--a-text-dim);
 }
-.staff-add input[type="text"], .staff-add input[type="tel"] {
+.staff-add input[type="text"], .staff-add input[type="tel"], .staff-add input[type="email"] {
   width: 100%; padding: 0.7rem 0.85rem; border-radius: 10px;
   background: var(--a-input-bg); border: 1px solid var(--a-border);
   color: var(--a-silver-hi); font-size: 0.92rem;
 }
+.pm-lede--tight { margin: 0.35rem 0 1rem; }
+.staff-admins-panel .staff-add { margin-bottom: 1.2rem; box-shadow: none; padding: 0; border: none; background: transparent; }
+.staff-admins-panel { margin-bottom: 1.4rem; }
 .staff-add input:focus { outline: none; border-color: var(--a-rose); }
 .staff-pw { display: flex; gap: 0.5rem; align-items: stretch; }
 .staff-pw input { flex: 1; }

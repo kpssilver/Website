@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'node:path';
 import { createOrder, verifyPayment } from './api/_lib/razorpay.js';
 import { handleStaffAction } from './api/_lib/staff.js';
+import { handleAdminAction } from './api/_lib/admins.js';
 import { readSupabaseEnv } from './api/_lib/supabaseAdmin.js';
 import { buildSitemap } from './api/_lib/sitemap.js';
 
@@ -49,7 +50,8 @@ function devApi(env) {
 
         const isRazorpay = url === '/api/create-order' || url === '/api/verify-payment';
         const staffMatch = url.match(/^\/api\/staff\/([a-z-]+)$/);
-        if (!isRazorpay && !staffMatch) return next();
+        const adminMatch = url.match(/^\/api\/admins\/([a-z-]+)$/);
+        if (!isRazorpay && !staffMatch && !adminMatch) return next();
 
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -64,6 +66,10 @@ function devApi(env) {
             url === '/api/create-order' ? await createOrder(body, razorpayCfg) : verifyPayment(body, razorpayCfg);
           return send(res, result);
         }
+        if (adminMatch) {
+          const result = await handleAdminAction(adminMatch[1], body, req.headers.authorization, supaEnv);
+          return send(res, result);
+        }
         const result = await handleStaffAction(staffMatch[1], body, req.headers.authorization, supaEnv);
         return send(res, result);
       });
@@ -73,7 +79,7 @@ function devApi(env) {
 
 // Dev-only: map clean URLs to their .html entry so `npm run dev` matches the
 // production routing (Vercel handles this via `cleanUrls` in vercel.json).
-const CLEAN_ROUTES = ['landing', 'shop', 'admin', 'staff'];
+const CLEAN_ROUTES = ['landing', 'shop', 'admin', 'staff', 'quote'];
 function cleanUrlRoutes() {
   return {
     name: 'kps-clean-url-routes',
@@ -116,6 +122,7 @@ export default defineConfig(({ mode }) => {
           admin: resolve(__dirname, 'admin.html'),
           staff: resolve(__dirname, 'staff.html'),
           landing: resolve(__dirname, 'landing.html'),
+          quote: resolve(__dirname, 'quote.html'),
         },
       },
     },
