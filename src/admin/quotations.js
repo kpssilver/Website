@@ -19,12 +19,23 @@ import {
   deleteQuotation,
 } from '../data/quotations.js';
 
-const ADDRESS_LINES = [
+const ADDRESS_TOP = [
   'No.905, Nagarathpet Main Road, (Near Mahaveer Medical)',
   'Bengaluru - 560002',
-  'Ph: 8660784494 / 9945971150   ·   email: kpssilver@gmail.com',
 ];
-const ADDRESS_HTML = ADDRESS_LINES.join('<br>');
+const CONTACT = {
+  phones: [
+    { display: '8660784494', tel: '+918660784494' },
+    { display: '9945971150', tel: '+919945971150' },
+  ],
+  email: 'kpssilver@gmail.com',
+};
+const ADDRESS_HTML =
+  ADDRESS_TOP.join('<br>') +
+  '<br>Ph: ' +
+  CONTACT.phones.map((p) => `<a href="tel:${p.tel}">${p.display}</a>`).join(' / ') +
+  `   ·   email: <a href="mailto:${CONTACT.email}">${CONTACT.email}</a>`;
+const PDF_LINK = [40, 82, 160]; // link colour for tappable contacts in the PDF
 
 const DEFAULT_NOTES = [
   'This quotation is valid for 7 days from the date mentioned above.',
@@ -60,6 +71,36 @@ function formatDate(iso) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 const defaultWidth = (col) => (col.key === 'name' ? 200 : col.type === 'number' ? 110 : 140);
+
+// Renders "Ph: <num> / <num>  ·  email: <addr>" centred, with each phone as a
+// tel: link and the email as a mailto: link (underlined + coloured so they read
+// as tappable in the exported PDF).
+function drawContactLine(pdf, pageW, y) {
+  const segs = [{ t: 'Ph: ' }];
+  CONTACT.phones.forEach((p, i) => {
+    segs.push({ t: p.display, url: `tel:${p.tel}` });
+    if (i < CONTACT.phones.length - 1) segs.push({ t: ' / ' });
+  });
+  segs.push({ t: '   \u00b7   email: ' });
+  segs.push({ t: CONTACT.email, url: `mailto:${CONTACT.email}` });
+
+  const widths = segs.map((s) => pdf.getTextWidth(s.t));
+  const total = widths.reduce((a, b) => a + b, 0);
+  let x = (pageW - total) / 2;
+  segs.forEach((s, i) => {
+    if (s.url) {
+      pdf.setTextColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
+      pdf.textWithLink(s.t, x, y, { url: s.url });
+      pdf.setDrawColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
+      pdf.setLineWidth(0.4);
+      pdf.line(x, y + 1.4, x + widths[i], y + 1.4);
+      pdf.setTextColor(90);
+    } else {
+      pdf.text(s.t, x, y);
+    }
+    x += widths[i];
+  });
+}
 
 // -----------------------------------------------------------------------------
 export function renderQuotations(root) {
@@ -610,10 +651,13 @@ export function renderQuotations(root) {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(90);
-    ADDRESS_LINES.forEach((line) => {
+    ADDRESS_TOP.forEach((line) => {
       pdf.text(line, pageW / 2, y, { align: 'center' });
       y += 12;
     });
+    // Contact line with tappable tel:/mailto: links, centred as one row.
+    drawContactLine(pdf, pageW, y);
+    y += 12;
     y += 6;
     pdf.setDrawColor(214);
     pdf.line(margin, y, pageW - margin, y);

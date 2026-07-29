@@ -1622,6 +1622,7 @@ select.cat-select option,
 .qt-head { text-align: center; margin-bottom: 0.4rem; }
 .qt-logo { height: 74px; width: auto; margin: 0 auto 0.55rem; display: block; }
 .qt-addr { font-size: 0.82rem; line-height: 1.5; color: #4a3b42; }
+.qt-addr a { color: #2d5aaa; text-decoration: underline; }
 .qt-doc-title {
   text-align: center; font-family: var(--fd); font-weight: 400; font-size: 1.5rem;
   color: #1a1116; margin: 1rem 0 0.9rem; letter-spacing: 0.04em;
