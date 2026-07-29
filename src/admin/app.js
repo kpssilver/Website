@@ -13,6 +13,7 @@ import { renderStaff } from './staff.js';
 import { renderStock } from './stock.js';
 import { renderInvoices } from './invoices.js';
 import { renderBusiness } from './business.js';
+import { renderQuotations } from './quotations.js';
 
 const ADMIN_TABS = [
   { id: 'insights', label: 'Insights' },
@@ -21,6 +22,7 @@ const ADMIN_TABS = [
   { id: 'stock', label: 'Stock' },
   { id: 'billing', label: 'Billing' },
   { id: 'business', label: 'Business' },
+  { id: 'quotations', label: 'Quotations' },
   { id: 'content', label: 'Content' },
   { id: 'staff', label: 'Staff' },
 ];
@@ -80,6 +82,7 @@ export function renderApp(root, session, profile, onSignOut) {
     else if (nm === 'stock') renderStock(view, session, { isAdmin });
     else if (nm === 'billing') renderInvoices(view, session);
     else if (nm === 'business') renderBusiness(view, session, { isAdmin });
+    else if (nm === 'quotations') renderQuotations(view, session);
     else if (nm === 'shop') renderShopActivity(view, session);
     else if (nm === 'staff') renderStaff(view, session);
     else renderInsights(view, session);
