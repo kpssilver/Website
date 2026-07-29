@@ -66,6 +66,7 @@ export function renderQuotations(root) {
   let colSeq = 0;
   let rowSeq = 0;
   let currentId = null; // id of the saved quotation being edited (null = new)
+  let currentStatus = 'draft'; // status to keep when auto-saving on download
   let saved = []; // library of saved quotations
   let sideFilter = 'all'; // all | draft | final
   const openCards = new Set(); // saved-card ids whose item list is expanded
@@ -76,6 +77,7 @@ export function renderQuotations(root) {
 
   const resetBuilder = () => {
     currentId = null;
+    currentStatus = 'draft';
     columns = PRESET_COLUMNS.map((c) => ({ ...c, removable: false }));
     rows = [makeRow(), makeRow()];
   };
@@ -336,6 +338,7 @@ export function renderQuotations(root) {
 
   const loadInto = (q) => {
     currentId = q.id;
+    currentStatus = q.status || 'draft';
     columns = (Array.isArray(q.columns) && q.columns.length ? q.columns : PRESET_COLUMNS).map((c) => ({
       ...c,
       removable: !PRESET_COLUMNS.some((p) => p.key === c.key),
@@ -375,6 +378,7 @@ export function renderQuotations(root) {
       const payload = payloadFor(status);
       const rec = currentId ? await updateQuotation(currentId, payload) : await insertQuotation(payload);
       currentId = rec.id;
+      currentStatus = rec.status;
       setStatusTag(rec.status);
       await refreshSaved();
     } catch (err) {
@@ -707,6 +711,32 @@ export function renderQuotations(root) {
     alert('Sharing files isn’t supported on this device, so the PDF has been downloaded. Attach it in WhatsApp or email to share.');
   };
 
-  root.querySelector('#qtDownload').addEventListener('click', (e) => withButton(e.currentTarget, 'Preparing…', () => downloadPdf(builderSource())));
-  root.querySelector('#qtShare').addEventListener('click', (e) => withButton(e.currentTarget, 'Preparing…', () => sharePdf(builderSource())));
+  // Downloading/sharing always persists the current quotation first, even if the
+  // admin never pressed Save/Save draft — so nothing that goes out is ever lost.
+  const autosaveBuilder = async () => {
+    if (!buildPrintModel(columns, rows)) return; // nothing worth saving yet
+    try {
+      const payload = payloadFor(currentStatus || 'draft');
+      const rec = currentId ? await updateQuotation(currentId, payload) : await insertQuotation(payload);
+      currentId = rec.id;
+      currentStatus = rec.status;
+      setStatusTag(rec.status);
+      await refreshSaved();
+    } catch (err) {
+      console.warn('[KPS] quotation autosave failed:', err.message);
+    }
+  };
+
+  root.querySelector('#qtDownload').addEventListener('click', (e) =>
+    withButton(e.currentTarget, 'Preparing…', async () => {
+      await autosaveBuilder();
+      await downloadPdf(builderSource());
+    }),
+  );
+  root.querySelector('#qtShare').addEventListener('click', (e) =>
+    withButton(e.currentTarget, 'Preparing…', async () => {
+      await autosaveBuilder();
+      await sharePdf(builderSource());
+    }),
+  );
 }

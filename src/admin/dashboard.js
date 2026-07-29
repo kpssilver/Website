@@ -35,9 +35,37 @@ const C = {
 };
 const SERIES = [C.roseHi, C.rose, C.gold, C.glow, C.silver, '#9C6B5E', '#7A2531'];
 
-Chart.defaults.color = 'rgba(245,247,250,0.72)';
 Chart.defaults.font.family = 'Mulish, sans-serif';
-Chart.defaults.borderColor = 'rgba(233,188,169,0.12)';
+
+// Chart text/grid colours follow the active admin theme (light or dark) so axes
+// and labels stay readable on both backgrounds.
+function chartTheme() {
+  const s = getComputedStyle(document.documentElement);
+  const text = (s.getPropertyValue('--a-text') || '').trim() || 'rgba(245,247,250,0.72)';
+  const grid = (s.getPropertyValue('--a-border') || '').trim() || 'rgba(233,188,169,0.12)';
+  return { text, grid };
+}
+function applyChartTheme() {
+  const { text, grid } = chartTheme();
+  Chart.defaults.color = text;
+  Chart.defaults.borderColor = grid;
+}
+function refreshChartsTheme() {
+  applyChartTheme();
+  const { text, grid } = chartTheme();
+  registry.charts.forEach((ch) => {
+    ch.options.color = text;
+    Object.values(ch.options.scales || {}).forEach((sc) => {
+      sc.ticks = { ...(sc.ticks || {}), color: text };
+      sc.grid = { ...(sc.grid || {}), color: grid };
+      if (sc.title) sc.title.color = text;
+    });
+    const lg = ch.options.plugins && ch.options.plugins.legend;
+    if (lg) lg.labels = { ...(lg.labels || {}), color: text };
+    ch.update('none');
+  });
+}
+applyChartTheme();
 
 const KPI_TICK_MS = 15000; // light refresh: KPIs + live drawer
 const FULL_REFRESH_MS = 60000; // heavy refresh: charts / map / tables
@@ -647,6 +675,7 @@ async function refreshKpis(root) {
 async function load(root, mapDays) {
   registry.charts.forEach((c) => c.destroy());
   registry.charts = [];
+  applyChartTheme();
 
   const [summary, daily, sections, devices, countries, cities, events, recent, located] =
     await Promise.all([
@@ -685,6 +714,10 @@ async function load(root, mapDays) {
 export function disposeInsights() {
   registry.timers.forEach((t) => clearInterval(t));
   registry.timers = [];
+  if (registry.themeObserver) {
+    registry.themeObserver.disconnect();
+    registry.themeObserver = null;
+  }
   if (registry.escHandler) {
     document.removeEventListener('keydown', registry.escHandler);
     registry.escHandler = null;
@@ -702,6 +735,10 @@ export async function renderInsights(root) {
   disposeInsights();
   registry.root = root;
   root.innerHTML = viewMarkup();
+
+  // Re-tint charts instantly when the light/dark theme is toggled.
+  registry.themeObserver = new MutationObserver(() => refreshChartsTheme());
+  registry.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   let mapDays = null;
 
