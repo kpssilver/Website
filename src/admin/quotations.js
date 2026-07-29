@@ -30,11 +30,19 @@ const CONTACT = {
   ],
   email: 'kpssilver@gmail.com',
 };
-const ADDRESS_HTML =
-  ADDRESS_TOP.join('<br>') +
-  '<br>Ph: ' +
-  CONTACT.phones.map((p) => `<a href="tel:${p.tel}">${p.display}</a>`).join(' / ') +
-  `   ·   email: <a href="mailto:${CONTACT.email}">${CONTACT.email}</a>`;
+const ADDRESS_HTML = ADDRESS_TOP[0];
+const PHONE_SVG =
+  '<svg class="qt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"/></svg>';
+const MAIL_SVG =
+  '<svg class="qt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>';
+// Contact row shares the last address line: phones on the left corner, the city
+// centred, and the email on the right corner.
+const CONTACT_BAR_HTML =
+  `<span class="qt-contact-l">${PHONE_SVG}<span>${CONTACT.phones
+    .map((p) => `<a href="tel:${p.tel}">${p.display}</a>`)
+    .join(' / ')}</span></span>` +
+  `<span class="qt-contact-c">${esc(ADDRESS_TOP[1])}</span>` +
+  `<span class="qt-contact-r">${MAIL_SVG}<a href="mailto:${CONTACT.email}">${CONTACT.email}</a></span>`;
 const PDF_LINK = [40, 82, 160]; // link colour for tappable contacts in the PDF
 
 const DEFAULT_NOTES = [
@@ -48,7 +56,7 @@ const PRESET_COLUMNS = [
   { key: 'purity', label: 'Purity', type: 'number' },
   { key: 'plus', label: 'Plus', type: 'number' },
   { key: 'touch', label: 'Touch', type: 'computed' },
-  { key: 'making', label: 'Making charges', type: 'number' },
+  { key: 'making', label: 'MAKING CHARGES/Kg', type: 'number' },
 ];
 const OPTIONAL_COLUMNS = [
   { key: 'gross_weight', label: 'Gross weight', type: 'number' },
@@ -72,34 +80,69 @@ function formatDate(iso) {
 }
 const defaultWidth = (col) => (col.key === 'name' ? 200 : col.type === 'number' ? 110 : 140);
 
-// Renders "Ph: <num> / <num>  ·  email: <addr>" centred, with each phone as a
-// tel: link and the email as a mailto: link (underlined + coloured so they read
-// as tappable in the exported PDF).
-function drawContactLine(pdf, pageW, y) {
-  const segs = [{ t: 'Ph: ' }];
-  CONTACT.phones.forEach((p, i) => {
-    segs.push({ t: p.display, url: `tel:${p.tel}` });
-    if (i < CONTACT.phones.length - 1) segs.push({ t: ' / ' });
-  });
-  segs.push({ t: '   \u00b7   email: ' });
-  segs.push({ t: CONTACT.email, url: `mailto:${CONTACT.email}` });
+// Draws a link segment at (x, y) — coloured + underlined so it reads as tappable
+// — and returns the x position just past it.
+function drawLink(pdf, text, x, y, url) {
+  const w = pdf.getTextWidth(text);
+  pdf.setTextColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
+  pdf.textWithLink(text, x, y, { url });
+  pdf.setDrawColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
+  pdf.setLineWidth(0.4);
+  pdf.line(x, y + 1.4, x + w, y + 1.4);
+  pdf.setTextColor(90);
+  return x + w;
+}
 
-  const widths = segs.map((s) => pdf.getTextWidth(s.t));
-  const total = widths.reduce((a, b) => a + b, 0);
-  let x = (pageW - total) / 2;
-  segs.forEach((s, i) => {
-    if (s.url) {
-      pdf.setTextColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
-      pdf.textWithLink(s.t, x, y, { url: s.url });
-      pdf.setDrawColor(PDF_LINK[0], PDF_LINK[1], PDF_LINK[2]);
-      pdf.setLineWidth(0.4);
-      pdf.line(x, y + 1.4, x + widths[i], y + 1.4);
+// Small vector mobile-phone glyph; baseline sits on `y`. Returns its right edge.
+function drawPhoneIcon(pdf, x, y) {
+  const w = 7;
+  const h = 10;
+  const top = y - 8.5;
+  pdf.setDrawColor(90);
+  pdf.setFillColor(90);
+  pdf.setLineWidth(0.7);
+  pdf.roundedRect(x, top, w, h, 1.2, 1.2, 'S');
+  pdf.line(x + w * 0.3, top + 1.6, x + w * 0.7, top + 1.6);
+  pdf.circle(x + w / 2, top + h - 1.5, 0.5, 'F');
+  return x + w;
+}
+// Small vector envelope glyph; baseline sits on `y`. Returns its right edge.
+function drawMailIcon(pdf, x, y) {
+  const w = 11;
+  const h = 8;
+  const top = y - 7.5;
+  pdf.setDrawColor(90);
+  pdf.setLineWidth(0.7);
+  pdf.rect(x, top, w, h, 'S');
+  pdf.line(x, top, x + w / 2, top + h * 0.55);
+  pdf.line(x + w, top, x + w / 2, top + h * 0.55);
+  return x + w;
+}
+
+// Contact row shared with the last address line: phone icon + numbers on the
+// left corner, the city centred, and an envelope icon + email on the right
+// corner. Phones are tel: links, the email is a mailto: link.
+function drawContactRow(pdf, margin, pageW, y, city) {
+  const gap = 4;
+  // Left: phone icon + "<num> / <num>"
+  let x = drawPhoneIcon(pdf, margin, y) + gap;
+  CONTACT.phones.forEach((p, i) => {
+    x = drawLink(pdf, p.display, x, y, `tel:${p.tel}`);
+    if (i < CONTACT.phones.length - 1) {
       pdf.setTextColor(90);
-    } else {
-      pdf.text(s.t, x, y);
+      pdf.text(' / ', x, y);
+      x += pdf.getTextWidth(' / ');
     }
-    x += widths[i];
   });
+  // Centre: city.
+  pdf.setTextColor(90);
+  pdf.text(city, pageW / 2, y, { align: 'center' });
+  // Right: envelope icon + email, right-aligned to the margin.
+  const mailIconW = 11;
+  const ew = pdf.getTextWidth(CONTACT.email);
+  const startX = pageW - margin - (mailIconW + gap + ew);
+  const afterIcon = drawMailIcon(pdf, startX, y) + gap;
+  drawLink(pdf, CONTACT.email, afterIcon, y, `mailto:${CONTACT.email}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -188,6 +231,7 @@ export function renderQuotations(root) {
           <header class="qt-head">
             <img class="qt-logo" src="/logo.svg" alt="KPS Silver" />
             <div class="qt-addr">${ADDRESS_HTML}</div>
+            <div class="qt-contact-bar">${CONTACT_BAR_HTML}</div>
           </header>
           <h3 class="qt-doc-title">Quotation</h3>
           <div class="qt-meta">
@@ -242,7 +286,7 @@ export function renderQuotations(root) {
     const head = columns
       .map(
         (c) =>
-          `<th><span class="qt-h">${esc(c.label)}${c.removable ? `<button class="qt-col-rm" data-col="${c.key}" type="button" title="Remove column" aria-label="Remove ${esc(c.label)}">✕</button>` : ''}</span><span class="qt-col-grip" data-col="${c.key}"></span></th>`,
+          `<th><span class="qt-h"><input class="qt-h-in" data-col="${c.key}" value="${esc(c.label)}" title="Click to rename this column" aria-label="Column name" />${c.removable ? `<button class="qt-col-rm" data-col="${c.key}" type="button" title="Remove column" aria-label="Remove ${esc(c.label)}">✕</button>` : ''}</span><span class="qt-col-grip" data-col="${c.key}"></span></th>`,
       )
       .join('');
     const body = rows
@@ -266,6 +310,12 @@ export function renderQuotations(root) {
   renderTable();
 
   tableWrap.addEventListener('input', (e) => {
+    const hin = e.target.closest('.qt-h-in');
+    if (hin) {
+      const col = columns.find((c) => c.key === hin.dataset.col);
+      if (col) col.label = hin.value;
+      return;
+    }
     const inp = e.target.closest('.qt-in');
     if (!inp) return;
     const row = rows.find((r) => r.id === inp.dataset.row);
@@ -651,12 +701,10 @@ export function renderQuotations(root) {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(90);
-    ADDRESS_TOP.forEach((line) => {
-      pdf.text(line, pageW / 2, y, { align: 'center' });
-      y += 12;
-    });
-    // Contact line with tappable tel:/mailto: links, centred as one row.
-    drawContactLine(pdf, pageW, y);
+    pdf.text(ADDRESS_TOP[0], pageW / 2, y, { align: 'center' });
+    y += 12;
+    // Last address line: phones left corner, city centred, email right corner.
+    drawContactRow(pdf, margin, pageW, y, ADDRESS_TOP[1]);
     y += 12;
     y += 6;
     pdf.setDrawColor(214);
@@ -679,10 +727,10 @@ export function renderQuotations(root) {
     autoTable(pdf, {
       startY: y,
       margin: { left: margin, right: margin },
-      head: [model.usedCols.map((c) => c.label)],
+      head: [model.usedCols.map((c) => String(c.label).toUpperCase())],
       body: model.usedRows.map((r) => model.usedCols.map((c) => cellText(c, r))),
       styles: { font: 'helvetica', fontSize: 10, cellPadding: 6, lineColor: [201, 188, 193], lineWidth: 0.6, textColor: [26, 26, 26] },
-      headStyles: { fillColor: [240, 232, 234], textColor: [74, 59, 66], fontStyle: 'bold', lineColor: [201, 188, 193], lineWidth: 0.6 },
+      headStyles: { fillColor: [240, 232, 234], textColor: [74, 59, 66], fontStyle: 'bold', halign: 'center', lineColor: [201, 188, 193], lineWidth: 0.6 },
       alternateRowStyles: { fillColor: [250, 247, 248] },
     });
 
