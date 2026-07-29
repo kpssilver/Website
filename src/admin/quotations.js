@@ -30,13 +30,16 @@ const OPTIONAL_COLUMNS = [
   { key: 'gst', label: 'GST', type: 'number' },
 ];
 
-// Standing terms shown at the foot of every quotation (no pricing claims — we
-// don't print prices here).
-const FOOTER_POINTS = [
+// Default, editable notes shown under a "Notes" heading at the foot of the
+// quotation (no pricing claims — we don't print prices here). One per line.
+const DEFAULT_NOTES = [
   'This quotation is valid for 7 days from the date mentioned above.',
   'Final weight and purity are confirmed at the time of billing.',
   'For any clarification, please reach us on the phone number or email above.',
-];
+].join('\n');
+
+// Title-case: capitalise the first letter of every word (after start or space).
+const titleCase = (s) => String(s).replace(/(^|\s)(\p{L})/gu, (_, sp, ch) => sp + ch.toUpperCase());
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -131,17 +134,16 @@ export function renderQuotations(root) {
         </label>
       </div>
       <div class="qt-table-wrap" id="qtTableWrap"></div>
-      <label class="qt-note-field">Note (optional)
-        <textarea id="qtNote" rows="2" placeholder="Any note to the customer (optional)."></textarea>
+      <label class="qt-note-field">Notes
+        <textarea id="qtNotes" rows="4" placeholder="One note per line — shown under a “Notes” heading in the PDF.">${esc(DEFAULT_NOTES)}</textarea>
       </label>
-      <ul class="qt-foot">${FOOTER_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
     </div>
   </div>`;
 
   const tableWrap = root.querySelector('#qtTableWrap');
   const customerInput = root.querySelector('#qtCustomer');
   const dateInput = root.querySelector('#qtDate');
-  const noteInput = root.querySelector('#qtNote');
+  const notesInput = root.querySelector('#qtNotes');
 
   // ---- Editable table -------------------------------------------------------
   const cellInput = (col, row) => {
@@ -180,12 +182,12 @@ export function renderQuotations(root) {
     if (!inp) return;
     const row = rows.find((r) => r.id === inp.dataset.row);
     if (!row) return;
-    // Auto-capitalise the first letter of product names as they're typed.
+    // Title-case product names as they're typed ("sample item" → "Sample Item").
     if (inp.dataset.col === 'name' && inp.value) {
-      const capped = inp.value.charAt(0).toUpperCase() + inp.value.slice(1);
+      const capped = titleCase(inp.value);
       if (capped !== inp.value) {
         const pos = inp.selectionStart;
-        inp.value = capped;
+        inp.value = capped; // only case changes, so length + caret stay put
         try {
           inp.setSelectionRange(pos, pos);
         } catch {
@@ -267,13 +269,19 @@ export function renderQuotations(root) {
   const buildPrintSheet = (model) => {
     const customer = customerInput.value.trim();
     const date = formatDate(dateInput.value || today);
-    const note = noteInput.value.trim();
+    const notes = notesInput.value
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     const sheet = document.createElement('div');
     sheet.className = 'qt-print';
     const headRow = model.usedCols.map((c) => `<th>${esc(c.label)}</th>`).join('');
     const bodyRows = model.usedRows
       .map((r) => `<tr>${model.usedCols.map((c) => `<td>${esc(cellText(c, r))}</td>`).join('')}</tr>`)
       .join('');
+    const notesHtml = notes.length
+      ? `<div class="qt-print-notes"><div class="qt-print-notes-h">Notes</div><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>`
+      : '';
     sheet.innerHTML = `
       <div class="qt-print-head">
         <img class="qt-print-logo" src="/logo.svg" alt="KPS Silver" />
@@ -288,8 +296,7 @@ export function renderQuotations(root) {
         <thead><tr>${headRow}</tr></thead>
         <tbody>${bodyRows}</tbody>
       </table>
-      ${note ? `<p class="qt-print-note">${esc(note)}</p>` : ''}
-      <ul class="qt-print-foot">${FOOTER_POINTS.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`;
+      ${notesHtml}`;
     return sheet;
   };
 
@@ -309,7 +316,10 @@ export function renderQuotations(root) {
           /* leave as-is; useCORS may still capture it */
         }
       }
-      return await html2canvas(node, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      // Render at high resolution so text/lines stay crisp (not pixelated) in
+      // the PDF, accounting for the display's pixel ratio.
+      const scale = Math.min(4, Math.max(3, (window.devicePixelRatio || 1) * 2));
+      return await html2canvas(node, { scale, useCORS: true, backgroundColor: '#ffffff', logging: false });
     } finally {
       stage.remove();
     }
@@ -330,7 +340,8 @@ export function renderQuotations(root) {
     const pageW = 595.28; // A4 width in pt — keeps a familiar document width
     const pageH = (canvas.height * pageW) / canvas.width;
     const pdf = new jsPDF({ unit: 'pt', format: [pageW, pageH], orientation: pageH >= pageW ? 'portrait' : 'landscape' });
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, pageH);
+    // Lossless PNG avoids the JPEG artefacts that made text look fuzzy.
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, pageH, undefined, 'FAST');
     return pdf;
   };
 

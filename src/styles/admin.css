@@ -1585,8 +1585,6 @@ select.cat-select option,
   cursor: pointer; font-size: 0.7rem; padding: 0;
 }
 .qt-row-rm:hover { background: #ff7d6c; color: #fff; }
-.qt-foot { margin: 1.4rem 0 0; padding: 0 0 0 1.1rem; list-style: disc; color: #6a5a60; font-size: 0.78rem; line-height: 1.6; }
-.qt-foot li { margin: 0.1rem 0; }
 
 /* Off-screen print sheet (rasterised into the PDF) */
 .qt-print { background: #fff; color: #111; font-family: Arial, sans-serif; padding: 34px 40px 40px; }
@@ -1601,9 +1599,10 @@ select.cat-select option,
 .qt-print-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .qt-print-table th, .qt-print-table td { border: 1px solid #c9bcc1; padding: 7px 9px; text-align: left; }
 .qt-print-table th { background: #f0e8ea; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: #4a3b42; }
-.qt-print-note { font-size: 12px; margin: 14px 0 0; color: #333; }
-.qt-print-foot { font-size: 11px; color: #555; margin: 20px 0 0; padding: 0 0 0 16px; line-height: 1.6; }
-.qt-print-foot li { margin: 2px 0; }
+.qt-print-notes { margin: 20px 0 0; }
+.qt-print-notes-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #4a3b42; margin-bottom: 4px; }
+.qt-print-notes ul { margin: 0; padding: 0 0 0 16px; font-size: 11px; color: #555; line-height: 1.6; }
+.qt-print-notes li { margin: 2px 0; }
 
 @media (max-width: 640px) {
   .qt-sheet { padding: 1.3rem 1rem 1.6rem; }
