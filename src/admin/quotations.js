@@ -68,6 +68,7 @@ export function renderQuotations(root) {
   let currentId = null; // id of the saved quotation being edited (null = new)
   let saved = []; // library of saved quotations
   let sideFilter = 'all'; // all | draft | final
+  const openCards = new Set(); // saved-card ids whose item list is expanded
   let columns;
   let rows;
 
@@ -83,24 +84,26 @@ export function renderQuotations(root) {
   const touchStr = (row) => fmtNum(toNum(row.values.purity) + toNum(row.values.plus));
   const cellText = (col, row) => (col.type === 'computed' ? touchStr(row) : row.values[col.key] ?? '');
 
-  const isRowBlank = (row) =>
-    columns.every((c) => {
+  // Pure helpers (take explicit columns/rows) so the same logic drives the live
+  // builder AND any saved quotation we export straight from the library.
+  const isRowBlank = (row, cols) =>
+    cols.every((c) => {
       if (c.type === 'computed') return true;
-      const v = String(row.values[c.key] ?? '').trim();
+      const v = String(row.values?.[c.key] ?? '').trim();
       if (v === '') return true;
       if (c.key === 'purity' && Number(v) === 92.5) return true;
       return false;
     });
   const isColBlank = (col, used) => {
     if (col.type === 'computed') {
-      return used.every((r) => String(r.values.purity ?? '').trim() === '' && String(r.values.plus ?? '').trim() === '');
+      return used.every((r) => String(r.values?.purity ?? '').trim() === '' && String(r.values?.plus ?? '').trim() === '');
     }
-    return used.every((r) => String(r.values[col.key] ?? '').trim() === '');
+    return used.every((r) => String(r.values?.[col.key] ?? '').trim() === '');
   };
-  const printModel = () => {
-    const usedRows = rows.filter((r) => !isRowBlank(r));
+  const buildPrintModel = (cols, rws) => {
+    const usedRows = rws.filter((r) => !isRowBlank(r, cols));
     if (!usedRows.length) return null;
-    const usedCols = columns.filter((c) => !isColBlank(c, usedRows));
+    const usedCols = cols.filter((c) => !isColBlank(c, usedRows));
     if (!usedCols.length) return null;
     return { usedRows, usedCols };
   };
@@ -389,6 +392,26 @@ export function renderQuotations(root) {
 
   const rowsSummary = (q) => (Array.isArray(q.rows) ? q.rows : []).filter((r) => String(r.values?.name || '').trim());
 
+  const itemsPanelHtml = (q) => {
+    const items = rowsSummary(q);
+    if (!items.length) return `<p class="qt-items-empty">No named items in this quotation.</p>`;
+    return `
+      <label class="qt-pick-all"><input type="checkbox" class="qt-pick-master" checked /> Select all (${items.length})</label>
+      <div class="qt-pick-list">
+        ${items
+          .map(
+            (r, i) => `
+          <label class="qt-pick">
+            <input type="checkbox" class="qt-pick-item" data-i="${i}" checked />
+            <span class="qt-pick-name">${esc(r.values.name)}</span>
+            <span class="qt-pick-meta">T ${esc(touchStr(r))}${r.values.making ? ` · MC ${esc(r.values.making)}` : ''}</span>
+          </label>`,
+          )
+          .join('')}
+      </div>
+      <button class="dash-btn qt-pick-add" data-move="${q.id}" type="button">Move selected to current</button>`;
+  };
+
   const renderSide = () => {
     const list = filtered();
     if (!list.length) {
@@ -398,8 +421,7 @@ export function renderQuotations(root) {
     sideList.innerHTML = list
       .map((q) => {
         const items = rowsSummary(q);
-        const names = items.map((r) => r.values.name).slice(0, 3).join(', ');
-        const more = items.length > 3 ? ` +${items.length - 3} more` : '';
+        const open = openCards.has(q.id);
         return `
         <div class="qt-card${q.id === currentId ? ' is-current' : ''}" data-id="${q.id}">
           <div class="qt-card-top">
@@ -407,13 +429,15 @@ export function renderQuotations(root) {
             <span class="qt-badge ${q.status === 'final' ? 'is-final' : 'is-draft'}">${q.status === 'final' ? 'Final' : 'Draft'}</span>
           </div>
           <div class="qt-card-sub">${esc(formatDate(q.quote_date))} · ${items.length} item${items.length === 1 ? '' : 's'}</div>
-          ${names ? `<div class="qt-card-items">${esc(names)}${more}</div>` : ''}
+          <button class="qt-items-toggle" data-toggle="${q.id}" type="button" aria-expanded="${open}">
+            <span class="qt-caret">${open ? '▾' : '▸'}</span> Items (${items.length})
+          </button>
+          <div class="qt-picker"${open ? '' : ' hidden'}>${open ? itemsPanelHtml(q) : ''}</div>
           <div class="qt-card-btns">
             <button class="qt-mini" data-open="${q.id}" type="button">Open</button>
-            <button class="qt-mini" data-use="${q.id}" type="button"${items.length ? '' : ' disabled'}>Use items</button>
+            <button class="qt-mini" data-dl="${q.id}" type="button"${items.length ? '' : ' disabled'}>Download</button>
             <button class="qt-mini qt-mini--danger" data-del="${q.id}" type="button">Delete</button>
           </div>
-          <div class="qt-picker" id="qtPicker-${q.id}" hidden></div>
         </div>`;
       })
       .join('');
@@ -437,47 +461,15 @@ export function renderQuotations(root) {
     renderSide();
   });
 
-  // Bring selected line-items from a saved quotation into the current builder.
-  const openPicker = (q) => {
-    const picker = root.querySelector(`#qtPicker-${q.id}`);
-    if (!picker) return;
-    if (!picker.hidden) {
-      picker.hidden = true;
-      picker.innerHTML = '';
+  sideList.addEventListener('click', async (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.toggle;
+      if (openCards.has(id)) openCards.delete(id);
+      else openCards.add(id);
+      renderSide();
       return;
     }
-    const items = rowsSummary(q);
-    picker.innerHTML = `
-      <label class="qt-pick-all"><input type="checkbox" class="qt-pick-master" checked /> Select all</label>
-      <div class="qt-pick-list">
-        ${items
-          .map(
-            (r, i) =>
-              `<label class="qt-pick"><input type="checkbox" class="qt-pick-item" data-i="${i}" checked /> ${esc(r.values.name)}</label>`,
-          )
-          .join('')}
-      </div>
-      <button class="dash-btn qt-pick-add" type="button">Move to current quotation</button>`;
-    picker.hidden = false;
-    const master = picker.querySelector('.qt-pick-master');
-    master.addEventListener('change', () => {
-      picker.querySelectorAll('.qt-pick-item').forEach((cb) => {
-        cb.checked = master.checked;
-      });
-    });
-    picker.querySelector('.qt-pick-add').addEventListener('click', () => {
-      const chosen = [...picker.querySelectorAll('.qt-pick-item')].filter((cb) => cb.checked).map((cb) => Number(cb.dataset.i));
-      if (!chosen.length) return;
-      chosen.forEach((i) => rows.push(makeRow(items[i].values, items[i].h || null)));
-      renderTable();
-      picker.hidden = true;
-      picker.innerHTML = '';
-      // Scroll the builder into view so the added rows are visible.
-      root.querySelector('#qtSheet')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    });
-  };
-
-  sideList.addEventListener('click', async (e) => {
     const open = e.target.closest('[data-open]');
     if (open) {
       const q = saved.find((x) => x.id === open.dataset.open);
@@ -487,10 +479,31 @@ export function renderQuotations(root) {
       }
       return;
     }
-    const use = e.target.closest('[data-use]');
-    if (use) {
-      const q = saved.find((x) => x.id === use.dataset.use);
-      if (q) openPicker(q);
+    const move = e.target.closest('[data-move]');
+    if (move) {
+      const q = saved.find((x) => x.id === move.dataset.move);
+      if (!q) return;
+      const card = move.closest('.qt-card');
+      const items = rowsSummary(q);
+      const chosen = [...card.querySelectorAll('.qt-pick-item')].filter((cb) => cb.checked).map((cb) => Number(cb.dataset.i));
+      if (!chosen.length) {
+        alert('Select at least one item to move.');
+        return;
+      }
+      chosen.forEach((i) => rows.push(makeRow(items[i].values, items[i].h || null)));
+      renderTable();
+      root.querySelector('#qtSheet')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const orig = move.textContent;
+      move.textContent = `Added ${chosen.length} item${chosen.length === 1 ? '' : 's'} ✓`;
+      setTimeout(() => {
+        move.textContent = orig;
+      }, 1400);
+      return;
+    }
+    const dl = e.target.closest('[data-dl]');
+    if (dl) {
+      const q = saved.find((x) => x.id === dl.dataset.dl);
+      if (q) withButton(dl, '…', async () => downloadPdf(savedSource(q)));
       return;
     }
     const del = e.target.closest('[data-del]');
@@ -500,6 +513,7 @@ export function renderQuotations(root) {
       if (!confirm(`Delete this ${q.status === 'final' ? '' : 'draft '}quotation${q.customer ? ` for ${q.customer}` : ''}? This cannot be undone.`)) return;
       try {
         await deleteQuotation(q.id);
+        openCards.delete(q.id);
         if (currentId === q.id) {
           currentId = null;
           setStatusTag(null);
@@ -509,6 +523,15 @@ export function renderQuotations(root) {
         alert(`Could not delete: ${err.message}`);
       }
     }
+  });
+
+  // "Select all" master checkbox inside an expanded card.
+  sideList.addEventListener('change', (e) => {
+    const master = e.target.closest('.qt-pick-master');
+    if (!master) return;
+    master.closest('.qt-picker').querySelectorAll('.qt-pick-item').forEach((cb) => {
+      cb.checked = master.checked;
+    });
   });
 
   refreshSaved();
@@ -543,10 +566,27 @@ export function renderQuotations(root) {
     return { dataUrl: c.toDataURL('image/png'), w: displayW, h: displayW * ratio };
   }
 
-  const buildPdf = async () => {
-    const model = printModel();
+  // A "source" is everything needed to render a PDF, decoupled from the live DOM
+  // so we can export the builder OR any saved quotation from the library.
+  const builderSource = () => ({
+    columns,
+    rows,
+    customer: customerInput.value.trim(),
+    quoteDate: dateInput.value || today,
+    notes: notesInput.value,
+  });
+  const savedSource = (q) => ({
+    columns: Array.isArray(q.columns) && q.columns.length ? q.columns : PRESET_COLUMNS,
+    rows: Array.isArray(q.rows) ? q.rows : [],
+    customer: q.customer || '',
+    quoteDate: q.quote_date || today,
+    notes: q.notes ?? '',
+  });
+
+  const generatePdf = async (source) => {
+    const model = buildPrintModel(source.columns, source.rows);
     if (!model) {
-      alert('Add at least one row with details before creating the PDF.');
+      alert('This quotation has no line-items to export yet. Add at least one row with a name/details, then try again.');
       return null;
     }
     const { jsPDF } = await import('jspdf');
@@ -582,11 +622,10 @@ export function renderQuotations(root) {
     pdf.line(margin, y, pageW - margin, y);
     y += 18;
 
-    const customer = customerInput.value.trim();
     pdf.setFontSize(10);
     pdf.setTextColor(45);
-    if (customer) pdf.text(`To: ${customer}`, margin, y);
-    pdf.text(`Date: ${formatDate(dateInput.value || today)}`, pageW - margin, y, { align: 'right' });
+    if (source.customer) pdf.text(`To: ${source.customer}`, margin, y);
+    pdf.text(`Date: ${formatDate(source.quoteDate)}`, pageW - margin, y, { align: 'right' });
     y += 8;
 
     autoTable(pdf, {
@@ -600,7 +639,7 @@ export function renderQuotations(root) {
     });
 
     let afterY = (pdf.lastAutoTable?.finalY || y) + 22;
-    const notes = notesInput.value.split('\n').map((l) => l.trim()).filter(Boolean);
+    const notes = (source.notes || '').split('\n').map((l) => l.trim()).filter(Boolean);
     if (notes.length) {
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(11);
@@ -620,9 +659,9 @@ export function renderQuotations(root) {
     return pdf;
   };
 
-  const filename = () => {
-    const who = customerInput.value.trim().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '');
-    return `KPS-Quotation${who ? '-' + who : ''}-${dateInput.value || today}.pdf`;
+  const filenameFor = (source) => {
+    const who = (source.customer || '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '');
+    return `KPS-Quotation${who ? '-' + who : ''}-${source.quoteDate}.pdf`;
   };
 
   const withButton = async (btn, label, fn) => {
@@ -640,36 +679,34 @@ export function renderQuotations(root) {
     }
   };
 
-  root.querySelector('#qtDownload').addEventListener('click', (e) => {
-    withButton(e.currentTarget, 'Preparing…', async () => {
-      const pdf = await buildPdf();
-      if (!pdf) return;
-      pdf.save(filename());
-    });
-  });
+  const downloadPdf = async (source) => {
+    const pdf = await generatePdf(source);
+    if (!pdf) return;
+    pdf.save(filenameFor(source));
+  };
 
-  root.querySelector('#qtShare').addEventListener('click', (e) => {
-    withButton(e.currentTarget, 'Preparing…', async () => {
-      const pdf = await buildPdf();
-      if (!pdf) return;
-      const name = filename();
-      const blob = pdf.output('blob');
-      const file = new File([blob], name, { type: 'application/pdf' });
-      const customer = customerInput.value.trim();
-      const shareData = {
-        title: 'KPS Silver — Quotation',
-        text: customer ? `Quotation for ${customer} — KPS Silver` : 'Quotation — KPS Silver',
-      };
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ ...shareData, files: [file] });
-          return;
-        } catch (err) {
-          if (err?.name === 'AbortError') return;
-        }
+  const sharePdf = async (source) => {
+    const pdf = await generatePdf(source);
+    if (!pdf) return;
+    const name = filenameFor(source);
+    const blob = pdf.output('blob');
+    const file = new File([blob], name, { type: 'application/pdf' });
+    const shareData = {
+      title: 'KPS Silver — Quotation',
+      text: source.customer ? `Quotation for ${source.customer} — KPS Silver` : 'Quotation — KPS Silver',
+    };
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ ...shareData, files: [file] });
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
       }
-      pdf.save(name);
-      alert('Sharing files isn’t supported on this device, so the PDF has been downloaded. Attach it in WhatsApp or email to share.');
-    });
-  });
+    }
+    pdf.save(name);
+    alert('Sharing files isn’t supported on this device, so the PDF has been downloaded. Attach it in WhatsApp or email to share.');
+  };
+
+  root.querySelector('#qtDownload').addEventListener('click', (e) => withButton(e.currentTarget, 'Preparing…', () => downloadPdf(builderSource())));
+  root.querySelector('#qtShare').addEventListener('click', (e) => withButton(e.currentTarget, 'Preparing…', () => sharePdf(builderSource())));
 }
