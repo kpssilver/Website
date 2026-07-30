@@ -12,6 +12,7 @@ import { renderLogin } from './login.js';
 import { renderApp } from './app.js';
 import { renderChangePassword } from './changePassword.js';
 import { renderMfaChallenge } from './mfaChallenge.js';
+import { excludeThisDevice } from '../analytics/exclude.js';
 
 const root = document.getElementById('admin-root');
 
@@ -49,6 +50,10 @@ async function route(session) {
     await signOut();
     return showLogin('Staff sign in at the staff portal: /staff');
   }
+
+  // Permanently mark this device so the admin's own browsing (even later on the
+  // public site, signed out) is never counted in visitor insights.
+  excludeThisDevice();
 
   // If this account has a verified authenticator, require a 2FA code before the
   // dashboard is shown (elevate the session to AAL2).

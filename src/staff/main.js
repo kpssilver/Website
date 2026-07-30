@@ -10,6 +10,7 @@ import { getSession, getProfile, signOut } from '../admin/auth.js';
 import { renderLogin } from '../admin/login.js';
 import { renderApp } from '../admin/app.js';
 import { renderChangePassword } from '../admin/changePassword.js';
+import { excludeThisDevice } from '../analytics/exclude.js';
 
 const root = document.getElementById('staff-root');
 
@@ -47,6 +48,9 @@ async function route(session) {
     await signOut();
     return showLogin('Administrators sign in at the admin portal: /admin');
   }
+
+  // Mark this device so a staff member's own browsing isn't counted as a visit.
+  excludeThisDevice();
 
   // Staff must set their own password on first login.
   if (profile.mustChange) {

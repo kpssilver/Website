@@ -22,6 +22,7 @@ import {
   fetchRecentEvents,
   fetchSessionDetail,
 } from './data.js';
+import { excludeThisDevice, includeThisDevice, isDeviceExcludedFlag } from '../analytics/exclude.js';
 
 // --- Brand palette -----------------------------------------------------------
 const C = {
@@ -118,6 +119,9 @@ function viewMarkup() {
   <div class="view-toolbar">
     <span class="live-pill" id="livePill"><span class="live-dot"></span> Live · auto-updating</span>
     <span class="dash-updated" id="dashUpdated"></span>
+    <label class="ins-exclude" title="When on, visits from this browser/device are not counted in these insights">
+      <input type="checkbox" id="excludeToggle" /> Don't count my visits from this device
+    </label>
     <button class="dash-btn" id="refreshBtn" title="Refresh now">↻ Refresh</button>
   </div>
 
@@ -735,6 +739,16 @@ export async function renderInsights(root) {
   disposeInsights();
   registry.root = root;
   root.innerHTML = viewMarkup();
+
+  // "Don't count my visits" device toggle (reflects the persistent opt-out).
+  const excludeToggle = root.querySelector('#excludeToggle');
+  if (excludeToggle) {
+    excludeToggle.checked = isDeviceExcludedFlag();
+    excludeToggle.addEventListener('change', () => {
+      if (excludeToggle.checked) excludeThisDevice();
+      else includeThisDevice();
+    });
+  }
 
   // Re-tint charts instantly when the light/dark theme is toggled.
   registry.themeObserver = new MutationObserver(() => refreshChartsTheme());

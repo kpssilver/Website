@@ -13,6 +13,7 @@ import { supabase, isSupabaseConfigured } from '../config/supabase.js';
 import { collectContext } from './device.js';
 import { requestLocationConsent } from './consent.js';
 import { resolveLocation } from './location.js';
+import { isDeviceExcluded } from './exclude.js';
 
 // The page sections we care about, mapped to their DOM selectors.
 const SECTION_SELECTORS = {
@@ -196,7 +197,10 @@ async function isInternalUser() {
 export async function initAnalytics() {
   if (!isSupabaseConfigured) return;
   if (state.started) return;
-  if (await isInternalUser()) return; // skip admins / staff — not real visitors
+  // Skip the shop's own team: an opted-out device (set on admin/staff login or
+  // via ?kpsnotrack=1) OR a currently signed-in admin/staff on this origin.
+  if (isDeviceExcluded()) return;
+  if (await isInternalUser()) return;
   state.started = true;
 
   state.sessionKey = makeSessionKey();
