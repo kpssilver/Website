@@ -11,6 +11,7 @@
 import { supabase } from '../config/supabase.js';
 import { staffApi } from './staffApi.js';
 import { adminApi } from './adminApi.js';
+import { getVerifiedTotpFactor, verifyTotpCode } from './auth.js';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -291,6 +292,32 @@ export async function renderStaff(root) {
       </header>
       <div class="drawer-body" id="staffDrawerBody"></div>
     </aside>
+  </div>
+
+  <div class="pm-modal-backdrop" id="adminReauth" hidden>
+    <div class="pm-modal pm-modal--sm" role="dialog" aria-modal="true" aria-labelledby="adminReauthTitle">
+      <div class="pm-modal-head">
+        <h2 id="adminReauthTitle">Confirm removal</h2>
+        <button class="pm-x" type="button" data-reauth-close aria-label="Close">✕</button>
+      </div>
+      <form class="pm-form" id="adminReauthForm">
+        <p class="pm-hint" id="adminReauthLede"></p>
+        <div class="pm-form-grid">
+          <label class="pm-lbl pm-col-2">Your account password
+            <input name="password" type="password" autocomplete="current-password" placeholder="Your password" required />
+          </label>
+          <label class="pm-lbl pm-col-2" id="adminReauthCodeWrap" hidden>Authenticator code
+            <input name="code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="123456" autocomplete="one-time-code" />
+            <span class="pm-field-note">Enter the current 6-digit code from your authenticator app.</span>
+          </label>
+        </div>
+        <div class="pm-form-actions">
+          <span class="pm-save-msg" id="adminReauthMsg"></span>
+          <button type="button" class="dash-btn dash-btn--ghost" data-reauth-close>Cancel</button>
+          <button type="submit" class="dash-btn dash-btn--danger" id="adminReauthBtn">Remove admin</button>
+        </div>
+      </form>
+    </div>
   </div>`;
 
   const listRegion = root.querySelector('#staffListRegion');
@@ -378,23 +405,97 @@ export async function renderStaff(root) {
     }
   });
 
-  adminListRegion.addEventListener('click', async (e) => {
+  // Removing another admin is a sensitive action: the signed-in admin must
+  // re-authenticate with their OWN password and (if 2FA is on) a current
+  // authenticator code before the removal goes through.
+  const reauthModal = root.querySelector('#adminReauth');
+  const reauthForm = root.querySelector('#adminReauthForm');
+  const reauthLede = root.querySelector('#adminReauthLede');
+  const reauthMsg = root.querySelector('#adminReauthMsg');
+  const reauthBtn = root.querySelector('#adminReauthBtn');
+  const reauthCodeWrap = root.querySelector('#adminReauthCodeWrap');
+  const reauthCodeInput = reauthCodeWrap.querySelector('input');
+  let reauthTarget = null;
+
+  const closeReauth = () => {
+    reauthModal.hidden = true;
+    reauthForm.reset();
+    reauthMsg.textContent = '';
+    reauthMsg.className = 'pm-save-msg';
+    reauthBtn.disabled = false;
+    reauthBtn.textContent = 'Remove admin';
+    reauthTarget = null;
+  };
+
+  const openReauth = async ({ uid, name }) => {
+    reauthTarget = { uid, name };
+    reauthLede.textContent = `Removing ${name} deletes their login permanently. Confirm it's you to continue.`;
+    reauthModal.hidden = false;
+    const factor = await getVerifiedTotpFactor().catch(() => null);
+    reauthCodeWrap.hidden = !factor;
+    reauthCodeInput.required = !!factor;
+    reauthForm.querySelector('input[name="password"]').focus();
+  };
+
+  reauthModal.addEventListener('click', (e) => {
+    if (e.target === reauthModal || e.target.closest('[data-reauth-close]')) closeReauth();
+  });
+
+  reauthForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!reauthTarget) return;
+    const fd = new FormData(reauthForm);
+    const password = String(fd.get('password') || '');
+    const code = String(fd.get('code') || '').replace(/\D/g, '');
+
+    const fail = (m) => {
+      reauthMsg.textContent = m;
+      reauthMsg.className = 'pm-save-msg is-error';
+      reauthBtn.disabled = false;
+      reauthBtn.textContent = 'Remove admin';
+    };
+
+    if (!password) return fail('Enter your account password.');
+
+    reauthBtn.disabled = true;
+    reauthBtn.textContent = 'Verifying…';
+    reauthMsg.textContent = '';
+    reauthMsg.className = 'pm-save-msg';
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const email = user?.email;
+      if (!email) throw new Error('Could not confirm your account. Please sign in again.');
+
+      // 1) Re-authenticate with the signed-in admin's own password.
+      const { error: pwErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (pwErr) return fail('That password is incorrect.');
+
+      // 2) If the admin has 2FA, require a current authenticator code.
+      const factor = await getVerifiedTotpFactor();
+      if (factor) {
+        if (code.length !== 6) return fail('Enter your current 6-digit authenticator code.');
+        try {
+          await verifyTotpCode(factor.id, code);
+        } catch {
+          return fail('That authenticator code was incorrect. Please try again.');
+        }
+      }
+
+      // 3) Identity confirmed — remove the admin.
+      await adminApi.remove(reauthTarget.uid);
+      closeReauth();
+      loadAdmins();
+    } catch (err) {
+      fail(err?.message || 'Could not remove the administrator.');
+    }
+  });
+
+  adminListRegion.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-aact]');
     if (!btn) return;
     const { aact, uid, name } = btn.dataset;
-
-    if (aact === 'delete') {
-      if (!confirm(`Remove admin access for ${name}? Their login is deleted permanently.`)) return;
-      btn.disabled = true;
-      try {
-        await adminApi.remove(uid);
-        loadAdmins();
-      } catch (err) {
-        alert(err.message || 'Could not remove the administrator.');
-        btn.disabled = false;
-      }
-      return;
-    }
+    if (aact === 'delete') openReauth({ uid, name });
   });
 
   // ---- Add staff ------------------------------------------------------------
