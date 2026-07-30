@@ -7,10 +7,11 @@
 // =============================================================================
 import '../styles/admin.css';
 import { isSupabaseConfigured } from '../config/supabase.js';
-import { getSession, getProfile, signOut } from './auth.js';
+import { getSession, getProfile, signOut, needsMfaChallenge } from './auth.js';
 import { renderLogin } from './login.js';
 import { renderApp } from './app.js';
 import { renderChangePassword } from './changePassword.js';
+import { renderMfaChallenge } from './mfaChallenge.js';
 
 const root = document.getElementById('admin-root');
 
@@ -47,6 +48,16 @@ async function route(session) {
   if (profile.role === 'staff') {
     await signOut();
     return showLogin('Staff sign in at the staff portal: /staff');
+  }
+
+  // If this account has a verified authenticator, require a 2FA code before the
+  // dashboard is shown (elevate the session to AAL2).
+  try {
+    if (await needsMfaChallenge()) {
+      return renderMfaChallenge(root, () => route(session), () => showLogin());
+    }
+  } catch {
+    /* never lock the admin out on an MFA lookup hiccup */
   }
 
   renderApp(root, session, profile, () => showLogin());

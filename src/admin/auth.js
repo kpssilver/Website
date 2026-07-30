@@ -84,3 +84,68 @@ export async function getAccessToken() {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token || '';
 }
+
+// =============================================================================
+// TWO-FACTOR AUTHENTICATION (TOTP)  — Supabase Auth MFA
+// An admin can enrol an authenticator app (Google Authenticator, Authy, …). Once
+// a factor is verified, the session must be elevated to AAL2 with a 6-digit code
+// at each login before the dashboard is shown.
+// =============================================================================
+
+// Returns { all, totp, phone } factor lists.
+export async function listMfaFactors() {
+  const { data, error } = await supabase.auth.mfa.listFactors();
+  if (error) throw error;
+  return data;
+}
+
+// The account's assurance state: { currentLevel, nextLevel }.
+export async function getAuthenticatorLevels() {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error) throw error;
+  return data;
+}
+
+// A verified TOTP factor (or null) — i.e. 2FA is fully set up.
+export async function getVerifiedTotpFactor() {
+  const data = await listMfaFactors();
+  return (data?.totp || []).find((f) => f.status === 'verified') || null;
+}
+
+// True when the signed-in account still owes a 2FA code this session.
+export async function needsMfaChallenge() {
+  const levels = await getAuthenticatorLevels();
+  return levels.nextLevel === 'aal2' && levels.currentLevel !== 'aal2';
+}
+
+// Begin TOTP enrolment. Clears any half-finished (unverified) factors first so a
+// fresh QR is always issued. Returns { id, totp: { qr_code, secret, uri } }.
+export async function startTotpEnroll() {
+  const existing = await listMfaFactors();
+  const stale = (existing?.all || existing?.totp || []).filter((f) => f.status === 'unverified');
+  for (const f of stale) {
+    await supabase.auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+  }
+  const { data, error } = await supabase.auth.mfa.enroll({
+    factorType: 'totp',
+    friendlyName: `KPS Authenticator ${Date.now()}`,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Verify a 6-digit code against a factor (used for enrolment activation, login
+// elevation, and re-authentication before sensitive actions).
+export async function verifyTotpCode(factorId, code) {
+  const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+    factorId,
+    code: String(code || '').trim(),
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function unenrollTotp(factorId) {
+  const { error } = await supabase.auth.mfa.unenroll({ factorId });
+  if (error) throw error;
+}
