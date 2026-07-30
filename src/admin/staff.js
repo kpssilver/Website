@@ -405,15 +405,15 @@ export async function renderStaff(root) {
     }
   });
 
-  // Removing another admin is a sensitive action: the signed-in admin must
-  // confirm with their OWN password AND a current authenticator code. The
-  // server re-checks both before the account is deleted.
+  // Admin-only: removing another administrator requires password + TOTP.
+  // Staff Remove still uses a normal confirm() — no password/TOTP for staff.
   const reauthModal = root.querySelector('#adminReauth');
   const reauthForm = root.querySelector('#adminReauthForm');
   const reauthLede = root.querySelector('#adminReauthLede');
   const reauthMsg = root.querySelector('#adminReauthMsg');
   const reauthBtn = root.querySelector('#adminReauthBtn');
   let reauthTarget = null;
+  reauthModal.hidden = true; // never show until an admin Remove button is clicked
 
   const closeReauth = () => {
     reauthModal.hidden = true;
