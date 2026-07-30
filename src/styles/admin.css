@@ -374,12 +374,6 @@ html[data-theme='light'] {
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
-.ins-exclude {
-  display: inline-flex; align-items: center; gap: 0.4rem; margin-right: auto;
-  font-size: 0.8rem; color: var(--a-text-dim); cursor: pointer;
-}
-.ins-exclude input { width: 15px; height: 15px; accent-color: var(--a-rose); cursor: pointer; }
-
 /* ---- Sitewide breakdown reach bars ---------------------------------------- */
 .reach { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 8rem; }
 .reach-bar { flex: 1; height: 7px; border-radius: 999px; background: var(--a-track); overflow: hidden; min-width: 4rem; }

@@ -12,6 +12,10 @@ import { renderApp } from '../admin/app.js';
 import { renderChangePassword } from '../admin/changePassword.js';
 import { excludeThisDevice } from '../analytics/exclude.js';
 
+// Visiting /staff marks this device immediately — even on the login screen —
+// so staff browsing never lands in visitor insights.
+excludeThisDevice();
+
 const root = document.getElementById('staff-root');
 
 const LOGIN_OPTS = {
@@ -48,9 +52,6 @@ async function route(session) {
     await signOut();
     return showLogin('Administrators sign in at the admin portal: /admin');
   }
-
-  // Mark this device so a staff member's own browsing isn't counted as a visit.
-  excludeThisDevice();
 
   // Staff must set their own password on first login.
   if (profile.mustChange) {
