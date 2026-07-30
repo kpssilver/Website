@@ -11,7 +11,7 @@
 import { supabase } from '../config/supabase.js';
 import { staffApi } from './staffApi.js';
 import { adminApi } from './adminApi.js';
-import { getVerifiedTotpFactor, verifyTotpCode } from './auth.js';
+import { getVerifiedTotpFactor } from './auth.js';
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -306,9 +306,9 @@ export async function renderStaff(root) {
           <label class="pm-lbl pm-col-2">Your account password
             <input name="password" type="password" autocomplete="current-password" placeholder="Your password" required />
           </label>
-          <label class="pm-lbl pm-col-2" id="adminReauthCodeWrap" hidden>Authenticator code
-            <input name="code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="123456" autocomplete="one-time-code" />
-            <span class="pm-field-note">Enter the current 6-digit code from your authenticator app.</span>
+          <label class="pm-lbl pm-col-2" id="adminReauthCodeWrap">Authenticator code
+            <input name="code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="123456" autocomplete="one-time-code" required />
+            <span class="pm-field-note">Enter the current 6-digit code from your authenticator app. 2FA must be enabled in Security.</span>
           </label>
         </div>
         <div class="pm-form-actions">
@@ -406,15 +406,13 @@ export async function renderStaff(root) {
   });
 
   // Removing another admin is a sensitive action: the signed-in admin must
-  // re-authenticate with their OWN password and (if 2FA is on) a current
-  // authenticator code before the removal goes through.
+  // confirm with their OWN password AND a current authenticator code. The
+  // server re-checks both before the account is deleted.
   const reauthModal = root.querySelector('#adminReauth');
   const reauthForm = root.querySelector('#adminReauthForm');
   const reauthLede = root.querySelector('#adminReauthLede');
   const reauthMsg = root.querySelector('#adminReauthMsg');
   const reauthBtn = root.querySelector('#adminReauthBtn');
-  const reauthCodeWrap = root.querySelector('#adminReauthCodeWrap');
-  const reauthCodeInput = reauthCodeWrap.querySelector('input');
   let reauthTarget = null;
 
   const closeReauth = () => {
@@ -428,12 +426,14 @@ export async function renderStaff(root) {
   };
 
   const openReauth = async ({ uid, name }) => {
-    reauthTarget = { uid, name };
-    reauthLede.textContent = `Removing ${name} deletes their login permanently. Confirm it's you to continue.`;
-    reauthModal.hidden = false;
     const factor = await getVerifiedTotpFactor().catch(() => null);
-    reauthCodeWrap.hidden = !factor;
-    reauthCodeInput.required = !!factor;
+    if (!factor) {
+      alert('Enable an authenticator app in Security before you can remove other administrators.');
+      return;
+    }
+    reauthTarget = { uid, name };
+    reauthLede.textContent = `Removing ${name} deletes their login permanently. Enter your password and authenticator code to continue.`;
+    reauthModal.hidden = false;
     reauthForm.querySelector('input[name="password"]').focus();
   };
 
@@ -456,6 +456,7 @@ export async function renderStaff(root) {
     };
 
     if (!password) return fail('Enter your account password.');
+    if (code.length !== 6) return fail('Enter your current 6-digit authenticator code.');
 
     reauthBtn.disabled = true;
     reauthBtn.textContent = 'Verifying…';
@@ -463,27 +464,8 @@ export async function renderStaff(root) {
     reauthMsg.className = 'pm-save-msg';
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const email = user?.email;
-      if (!email) throw new Error('Could not confirm your account. Please sign in again.');
-
-      // 1) Re-authenticate with the signed-in admin's own password.
-      const { error: pwErr } = await supabase.auth.signInWithPassword({ email, password });
-      if (pwErr) return fail('That password is incorrect.');
-
-      // 2) If the admin has 2FA, require a current authenticator code.
-      const factor = await getVerifiedTotpFactor();
-      if (factor) {
-        if (code.length !== 6) return fail('Enter your current 6-digit authenticator code.');
-        try {
-          await verifyTotpCode(factor.id, code);
-        } catch {
-          return fail('That authenticator code was incorrect. Please try again.');
-        }
-      }
-
-      // 3) Identity confirmed — remove the admin.
-      await adminApi.remove(reauthTarget.uid);
+      // Server verifies password + TOTP against the signed-in admin, then deletes.
+      await adminApi.remove(reauthTarget.uid, password, code);
       closeReauth();
       loadAdmins();
     } catch (err) {

@@ -26,5 +26,7 @@ async function post(action, body) {
 export const adminApi = {
   create: (name, email, password) => post('create', { name, email, password }),
   list: () => post('list', {}),
-  remove: (userId) => post('delete', { user_id: userId }),
+  // password + totpCode are the signed-in admin's own credentials (server-verified).
+  remove: (userId, password, totpCode) =>
+    post('delete', { user_id: userId, password, totp_code: totpCode }),
 };

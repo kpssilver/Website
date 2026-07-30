@@ -18,11 +18,12 @@ export function emailFromMobile(mobile) {
   return `${digits}@${STAFF_EMAIL_DOMAIN}`;
 }
 
-// Reads Supabase server env (falls back to the VITE_ URL for local dev).
+// Reads Supabase server env (falls back to the VITE_ URL / anon key for local dev).
 export function readSupabaseEnv(source = process.env) {
   return {
     url: source.SUPABASE_URL || source.VITE_SUPABASE_URL,
     serviceKey: source.SUPABASE_SERVICE_ROLE_KEY,
+    anonKey: source.SUPABASE_ANON_KEY || source.VITE_SUPABASE_ANON_KEY,
   };
 }
 

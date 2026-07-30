@@ -1,14 +1,68 @@
 // =============================================================================
-// ADMINS — shared server-side core (create / list / reset password / delete).
+// ADMINS — shared server-side core (create / list / delete).
 //
 // Server-only (service role). Lets an existing admin provision additional
 // administrators. Each function returns { status, body } so both the Vercel
 // functions and the Vite dev middleware can respond uniformly. Every action
-// requires a signed-in admin (requireAdmin).
+// requires a signed-in admin (requireAdmin). Deleting another admin also
+// requires the caller's own password + a current TOTP code (verified server-side).
 // =============================================================================
+import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from './supabaseAdmin.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Confirm the caller's own password + authenticator code via a throwaway
+// anon client. Does not touch the browser session. Returns { userId } or
+// { error: { status, message } }.
+async function verifyCallerPasswordAndTotp(email, password, totpCode, env) {
+  const { url, anonKey } = env || {};
+  if (!url || !anonKey) {
+    return { error: { status: 500, message: 'Server is not configured for credential verification.' } };
+  }
+  if (!email) return { error: { status: 400, message: 'Could not confirm your account email.' } };
+  if (!password) return { error: { status: 400, message: 'Your account password is required.' } };
+  if (String(totpCode || '').replace(/\D/g, '').length !== 6) {
+    return { error: { status: 400, message: 'A valid 6-digit authenticator code is required.' } };
+  }
+
+  const client = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: signed, error: pwErr } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (pwErr || !signed?.user) {
+    return { error: { status: 401, message: 'That password is incorrect.' } };
+  }
+
+  const { data: factors, error: facErr } = await client.auth.mfa.listFactors();
+  if (facErr) return { error: { status: 400, message: facErr.message } };
+
+  const factor =
+    (factors?.totp || []).find((f) => f.status === 'verified') ||
+    (factors?.all || []).find((f) => f.factor_type === 'totp' && f.status === 'verified');
+  if (!factor) {
+    return {
+      error: {
+        status: 400,
+        message: 'Enable an authenticator app in Security before removing other admins.',
+      },
+    };
+  }
+
+  const { error: totpErr } = await client.auth.mfa.challengeAndVerify({
+    factorId: factor.id,
+    code: String(totpCode).replace(/\D/g, ''),
+  });
+  if (totpErr) {
+    return { error: { status: 401, message: 'That authenticator code was incorrect.' } };
+  }
+
+  return { userId: signed.user.id };
+}
 
 // POST /api/admins/create  { name, email, password }
 export async function createAdmin(payload, authHeader, env) {
@@ -86,15 +140,26 @@ export async function listAdmins(payload, authHeader, env) {
   return { status: 200, body: { ok: true, admins } };
 }
 
-// POST /api/admins/delete  { user_id }
+// POST /api/admins/delete  { user_id, password, totp_code }
 export async function deleteAdmin(payload, authHeader, env) {
   const gate = await requireAdmin(authHeader, env);
   if (gate.error) return { status: gate.error.status, body: { error: gate.error.message } };
   const { admin, user } = gate;
 
   const userId = String(payload?.user_id || '');
+  const password = String(payload?.password || '');
+  const totpCode = String(payload?.totp_code || payload?.code || '').replace(/\D/g, '');
+
   if (!userId) return { status: 400, body: { error: 'Missing admin id.' } };
   if (userId === user.id) return { status: 400, body: { error: 'You cannot remove your own admin access.' } };
+
+  // Sensitive action: the signed-in admin must prove their own identity with
+  // password + current authenticator code before another admin can be removed.
+  const identity = await verifyCallerPasswordAndTotp(user.email, password, totpCode, env);
+  if (identity.error) return { status: identity.error.status, body: { error: identity.error.message } };
+  if (identity.userId !== user.id) {
+    return { status: 403, body: { error: 'Credentials do not match the signed-in admin.' } };
+  }
 
   const { data: row } = await admin.from('admin_users').select('user_id').eq('user_id', userId).maybeSingle();
   if (!row) return { status: 404, body: { error: 'Admin not found.' } };
