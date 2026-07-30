@@ -101,7 +101,7 @@ export async function renderSecurity(root) {
           <li>Enter the 6-digit code the app shows to finish.</li>
         </ol>
         <div class="sec-enroll-grid">
-          <div class="sec-qr">${enroll.totp?.qr_code || ''}</div>
+          <div class="sec-qr" id="secQr"></div>
           <div class="sec-key">
             <span class="sec-key-lbl">Setup key</span>
             <code class="sec-key-val">${esc(enroll.totp?.secret || '')}</code>
@@ -118,6 +118,20 @@ export async function renderSecurity(root) {
           </div>
         </form>
       </div>`;
+
+    // Supabase returns the QR either as raw <svg> markup or as an SVG data URL.
+    // Render it robustly (as an <img> for a data URL, inline for raw SVG) so the
+    // code is always scannable.
+    const qrBox = mfaRegion.querySelector('#secQr');
+    const qr = (enroll.totp?.qr_code || '').trim();
+    if (qr.startsWith('<svg')) {
+      qrBox.innerHTML = qr;
+    } else if (qr) {
+      const img = new Image();
+      img.alt = 'Authenticator QR code';
+      img.src = qr;
+      qrBox.appendChild(img);
+    }
 
     const form = mfaRegion.querySelector('#secVerifyForm');
     const msg = mfaRegion.querySelector('#secVerifyMsg');

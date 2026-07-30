@@ -86,25 +86,6 @@ export async function listAdmins(payload, authHeader, env) {
   return { status: 200, body: { ok: true, admins } };
 }
 
-// POST /api/admins/reset-password  { user_id, password }
-export async function resetAdminPassword(payload, authHeader, env) {
-  const gate = await requireAdmin(authHeader, env);
-  if (gate.error) return { status: gate.error.status, body: { error: gate.error.message } };
-  const { admin } = gate;
-
-  const userId = String(payload?.user_id || '');
-  const password = String(payload?.password || '');
-  if (!userId) return { status: 400, body: { error: 'Missing admin id.' } };
-  if (password.length < 8) return { status: 400, body: { error: 'Password must be at least 8 characters.' } };
-
-  const { data: row } = await admin.from('admin_users').select('user_id').eq('user_id', userId).maybeSingle();
-  if (!row) return { status: 404, body: { error: 'Admin not found.' } };
-
-  const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password });
-  if (updErr) return { status: 400, body: { error: updErr.message || 'Could not reset the password.' } };
-  return { status: 200, body: { ok: true } };
-}
-
 // POST /api/admins/delete  { user_id }
 export async function deleteAdmin(payload, authHeader, env) {
   const gate = await requireAdmin(authHeader, env);
@@ -136,8 +117,6 @@ export async function handleAdminAction(action, payload, authHeader, env) {
       return createAdmin(payload, authHeader, env);
     case 'list':
       return listAdmins(payload, authHeader, env);
-    case 'reset-password':
-      return resetAdminPassword(payload, authHeader, env);
     case 'delete':
       return deleteAdmin(payload, authHeader, env);
     default:

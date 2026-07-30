@@ -26,6 +26,5 @@ async function post(action, body) {
 export const adminApi = {
   create: (name, email, password) => post('create', { name, email, password }),
   list: () => post('list', {}),
-  resetPassword: (userId, password) => post('reset-password', { user_id: userId, password }),
   remove: (userId) => post('delete', { user_id: userId }),
 };

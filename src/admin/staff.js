@@ -166,8 +166,7 @@ function adminTable(list) {
           <td>${esc(a.email)}</td>
           <td>${esc(fmtWhen(a.created_at))}</td>
           <td class="staff-actions">
-            <button class="dash-btn dash-btn--sm" data-aact="reset" data-uid="${esc(a.user_id)}" data-name="${esc(a.name)}">Reset password</button>
-            ${a.is_self ? '' : `<button class="dash-btn dash-btn--sm dash-btn--danger" data-aact="delete" data-uid="${esc(a.user_id)}" data-name="${esc(a.name)}">Remove</button>`}
+            ${a.is_self ? '<span class="staff-flag">manage your password in Security</span>' : `<button class="dash-btn dash-btn--sm dash-btn--danger" data-aact="delete" data-uid="${esc(a.user_id)}" data-name="${esc(a.name)}">Remove</button>`}
           </td>
         </tr>`,
         )
@@ -383,22 +382,6 @@ export async function renderStaff(root) {
     const btn = e.target.closest('button[data-aact]');
     if (!btn) return;
     const { aact, uid, name } = btn.dataset;
-
-    if (aact === 'reset') {
-      const pw = prompt(`Set a new password for ${name}.`);
-      if (pw == null) return;
-      if (pw.length < 8) return alert('Password must be at least 8 characters.');
-      btn.disabled = true;
-      try {
-        await adminApi.resetPassword(uid, pw);
-        alert(`Password reset for ${name}.`);
-      } catch (err) {
-        alert(err.message || 'Could not reset the password.');
-      } finally {
-        btn.disabled = false;
-      }
-      return;
-    }
 
     if (aact === 'delete') {
       if (!confirm(`Remove admin access for ${name}? Their login is deleted permanently.`)) return;
