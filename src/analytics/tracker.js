@@ -180,10 +180,23 @@ function wireEventTracking() {
   );
 }
 
+// Our own team must never be counted as visitors. On this origin only admins
+// and staff ever hold a Supabase auth session (customers browse anonymously),
+// so any signed-in user is internal and should be excluded from analytics.
+async function isInternalUser() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return Boolean(data?.session?.user);
+  } catch {
+    return false;
+  }
+}
+
 // ---- Public entry -----------------------------------------------------------
 export async function initAnalytics() {
   if (!isSupabaseConfigured) return;
   if (state.started) return;
+  if (await isInternalUser()) return; // skip admins / staff — not real visitors
   state.started = true;
 
   state.sessionKey = makeSessionKey();
